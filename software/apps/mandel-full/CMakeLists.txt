@@ -4,6 +4,7 @@
 
 add_executable(mandel-full
 	main.c
+  mandelbrot.c
 )
 
 target_compile_definitions(mandel-full PRIVATE

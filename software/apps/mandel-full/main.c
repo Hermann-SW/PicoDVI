@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "hardware/clocks.h"
 #include "hardware/dma.h"
 #include "hardware/gpio.h"
@@ -18,6 +19,8 @@
 #include "dvi.h"
 #include "dvi_serialiser.h"
 #include "common_dvi_pin_configs.h"
+
+#include "mandelbrot.h"
 
 // TMDS bit clock 252 MHz
 // DVDD 1.2V (1.1V seems ok too)
@@ -42,6 +45,8 @@ uint32_t tmds_palette_red[PALETTE_SIZE * 2];
 
 struct dvi_inst dvi0;
 struct semaphore dvi_start_sem;
+
+FractalBuffer fractal;
 
 // Just dumped out register values from running the code in tmds_encode.c:
 // channel_msb: 4, lshift_lower: 3, i0 ctrl: 02801c60, 00002117, i1 ctrl: 02801c6d, 00002117
@@ -81,19 +86,19 @@ static inline void prepare_scanline_core1(const uint32_t *colourbuf, uint32_t *t
   interp0_hw->base[2] = (uint32_t)tmds_palette_blue;
   interp1_hw->base[2] = (uint32_t)tmds_palette_blue;
   interp0_hw->ctrl[0] = 0x02801c40u;
-  interp1_hw->ctrl[0] = 0x02801c50u;
+  interp1_hw->ctrl[0] = 0x02801c48u;
   tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf, pixwidth);
 
   interp0_hw->base[2] = (uint32_t)tmds_palette_green;
   interp1_hw->base[2] = (uint32_t)tmds_palette_green;
   interp0_hw->ctrl[0] = 0x02801c40u;
-  interp1_hw->ctrl[0] = 0x02801c50u;
+  interp1_hw->ctrl[0] = 0x02801c48u;
   tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + pixwidth, pixwidth);
 
   interp0_hw->base[2] = (uint32_t)tmds_palette_red;
   interp1_hw->base[2] = (uint32_t)tmds_palette_red;
   interp0_hw->ctrl[0] = 0x02801c40u;
-  interp1_hw->ctrl[0] = 0x02801c50u;
+  interp1_hw->ctrl[0] = 0x02801c48u;
   tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + pixwidth * 2, pixwidth);
 #endif
 
@@ -104,19 +109,19 @@ static inline void prepare_scanline_core0(const uint32_t *colourbuf, uint32_t *t
   interp0_hw->base[2] = (uint32_t)tmds_palette_blue;
   interp1_hw->base[2] = (uint32_t)tmds_palette_blue;
   interp0_hw->ctrl[0] = 0x02801c40u;
-  interp1_hw->ctrl[0] = 0x02801c50u;
+  interp1_hw->ctrl[0] = 0x02801c48u;
   tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf, pixwidth);
 
   interp0_hw->base[2] = (uint32_t)tmds_palette_green;
   interp1_hw->base[2] = (uint32_t)tmds_palette_green;
   interp0_hw->ctrl[0] = 0x02801c40u;
-  interp1_hw->ctrl[0] = 0x02801c50u;
+  interp1_hw->ctrl[0] = 0x02801c48u;
   tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf + pixwidth, pixwidth);
 
   interp0_hw->base[2] = (uint32_t)tmds_palette_red;
   interp1_hw->base[2] = (uint32_t)tmds_palette_red;
   interp0_hw->ctrl[0] = 0x02801c40u;
-  interp1_hw->ctrl[0] = 0x02801c50u;
+  interp1_hw->ctrl[0] = 0x02801c48u;
   tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf + pixwidth * 2, pixwidth);
 }
 
@@ -141,15 +146,25 @@ void init_palette() {
   }
 }
 
-void __time_critical_func(fill_colour_buf)(uint16_t* colour_buf, uint32_t y) {
-  if (y == 0) {
+void init_mandel() {
+  for (int y = 0; y < (FRAME_HEIGHT / 2); ++y) {
+    uint8_t* buf = &mandel[y * FRAME_WIDTH];
     for (int i = 0; i < FRAME_WIDTH; ++i) {
-      colour_buf[i] = ((i + y) & 0x3f) << 2;
-    }
-    for (int i = 0; i < FRAME_WIDTH; ++i) {
-      colour_buf[i+FRAME_WIDTH] = ((i + y + 1) & 0x3f) << 2;
+      buf[i] = ((i + y) & 0x3f) << 2;
     }
   }
+
+  fractal.buff = mandel;
+  fractal.rows = FRAME_HEIGHT / 2;
+  fractal.cols = FRAME_WIDTH;
+  fractal.max_iter = 63;
+  fractal.iter_offset = 0;
+  fractal.minx = -2.25f;
+  fractal.maxx = 0.75f;
+  fractal.miny = -1.6f;
+  fractal.maxy = 0.f - (1.6f / FRAME_HEIGHT); // Half a row
+  fractal.use_cycle_check = true;
+  init_fractal(&fractal);
 }
 
 // Core 1 handles DMA IRQs and runs TMDS encode on scanline buffers it
@@ -170,8 +185,6 @@ void __not_in_flash("core1_main") core1_main() {
   __builtin_unreachable();
 }
 
-uint16_t img_buf[2 * FRAME_WIDTH];
-
 int __not_in_flash("main") main() {
   vreg_set_voltage(VREG_VSEL);
   sleep_ms(10);
@@ -184,6 +197,7 @@ int __not_in_flash("main") main() {
   // gpio_put(LED_PIN, 1);
   
   init_palette();
+  init_mandel();
 
   printf("Configuring DVI\n");
 
@@ -206,18 +220,35 @@ int __not_in_flash("main") main() {
       heartbeat = 0;
       gpio_xor_mask(1u << LED_PIN);
     }
-    for (int y = 0; y < FRAME_HEIGHT; y += 2) {
-      fill_colour_buf(img_buf, y);
-
+    for (int y = 0; y < FRAME_HEIGHT / 2; y += 2) {
       uint32_t *our_tmds_buf, *their_tmds_buf;
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
-      multicore_fifo_push_blocking((uint32_t)(img_buf));
+      multicore_fifo_push_blocking((uint32_t)(&mandel[y*FRAME_WIDTH]));
       multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
   
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
-      prepare_scanline_core0((const uint32_t*)(img_buf + FRAME_WIDTH), our_tmds_buf);
+      prepare_scanline_core0((const uint32_t*)(&mandel[(y+1)*FRAME_WIDTH]), our_tmds_buf);
       
       multicore_fifo_pop_blocking();
+
+      while (!queue_is_empty(&dvi0.q_tmds_valid)) generate_one_forward(&fractal);
+
+      queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
+      queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
+    }
+    for (int y = FRAME_HEIGHT / 2 - 2; y >= 0; y -= 2) {
+      uint32_t *our_tmds_buf, *their_tmds_buf;
+      queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
+      multicore_fifo_push_blocking((uint32_t)(&mandel[(y+1)*FRAME_WIDTH]));
+      multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
+  
+      queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
+      prepare_scanline_core0((const uint32_t*)(&mandel[y*FRAME_WIDTH]), our_tmds_buf);
+      
+      multicore_fifo_pop_blocking();
+
+      while (!queue_is_empty(&dvi0.q_tmds_valid)) generate_one_forward(&fractal);
+
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
     }

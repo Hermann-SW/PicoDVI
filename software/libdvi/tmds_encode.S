@@ -405,7 +405,8 @@ tmds_2bpp_table:
 	.align 2
 1:
 .rept 16
-	ldmia r0!, {r4, r6}
+	ldmia r0!, {r4}
+  lsrs r6, r4, #16
 	str r4, [r2, #ACCUM0_OFFS + INTERP1]
 	str r4, [r2, #ACCUM0_OFFS]
 	ldr r4, [r2, #PEEK2_OFFS]
