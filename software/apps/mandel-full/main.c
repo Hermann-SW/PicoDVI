@@ -167,6 +167,28 @@ void init_mandel() {
   init_fractal(&fractal);
 }
 
+#define NUM_ZOOMS 32
+static uint32_t zoom_count = 0;
+
+void zoom_mandel() {
+  if (++zoom_count == NUM_ZOOMS)
+  {
+    init_mandel();
+    zoom_count = 0;
+    return;
+  }
+
+  float zoomx = -.75f - .56f * ((float)zoom_count / (float)NUM_ZOOMS);
+  float sizex = fractal.maxx - fractal.minx;
+  float sizey = fractal.miny * -2.f;
+  float zoomr = 0.99f * 0.5f;
+  fractal.minx = zoomx - zoomr * sizex;
+  fractal.maxx = zoomx + zoomr * sizex;
+  fractal.miny = -zoomr * sizey;
+  fractal.maxy = 0.f + fractal.miny / FRAME_HEIGHT;
+  init_fractal(&fractal);
+}
+
 // Core 1 handles DMA IRQs and runs TMDS encode on scanline buffers it
 // receives through the mailbox FIFO
 void __not_in_flash("core1_main") core1_main() {
@@ -220,6 +242,7 @@ int __not_in_flash("main") main() {
       heartbeat = 0;
       gpio_xor_mask(1u << LED_PIN);
     }
+    if (fractal.done) zoom_mandel();
     for (int y = 0; y < FRAME_HEIGHT / 2; y += 2) {
       uint32_t *our_tmds_buf, *their_tmds_buf;
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
