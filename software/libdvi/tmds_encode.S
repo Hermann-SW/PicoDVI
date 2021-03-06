@@ -555,8 +555,7 @@ decl_func_y tmds_fullres_encode_loop_16bpp_leftshift_y
 	.align 2
 1:
 .rept 8
-	ldmia r0!, {r3, r4}
-  mov r5, r4
+	ldmia r0!, {r3, r5}
 	lsrs r4, r3, #16
 	lsrs r6, r5, #16
 	str r3, [r2, #ACCUM0_OFFS + INTERP1]
