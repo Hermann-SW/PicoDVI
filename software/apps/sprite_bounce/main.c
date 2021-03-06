@@ -15,9 +15,9 @@
 #include "sprite.h"
 
 // Pick one:
-#define MODE_640x480_60Hz
+//#define MODE_640x480_60Hz
 // #define MODE_800x480_60Hz
-// #define MODE_800x600_60Hz
+ #define MODE_800x600_60Hz
 // #define MODE_960x540p_60Hz
 // #define MODE_1280x720_30Hz
 
@@ -41,7 +41,7 @@
 // DVDD 1.3V, going downhill with a tailwind
 #define FRAME_WIDTH 400
 #define FRAME_HEIGHT 300
-#define VREG_VSEL VREG_VOLTAGE_1_30
+#define VREG_VSEL VREG_VOLTAGE_1_25
 #define DVI_TIMING dvi_timing_800x600p_60hz
 
 #elif defined(MODE_960x540p_60Hz)

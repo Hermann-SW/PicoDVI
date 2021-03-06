@@ -15,14 +15,14 @@
 // offloaded to a slower encode loop on a spare state machine.
 
 // Pick one:
-#define MODE_640x480_60Hz
-// #define MODE_1280x720_30Hz
+//#define MODE_640x480_60Hz
+#define MODE_1280x720_30Hz
 
 #if defined(MODE_640x480_60Hz)
 // DVDD 1.2V (1.1V seems ok too)
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
-#define VREG_VSEL VREG_VOLTAGE_1_20
+#define VREG_VSEL VREG_VOLTAGE_1_10
 #define DVI_TIMING dvi_timing_640x480p_60hz
 #include "moon_1bpp_640x480.h"
 #define moon_img moon_1bpp_640x480
@@ -31,7 +31,7 @@
 #define FRAME_WIDTH 1280
 #define FRAME_HEIGHT 720
 #define VREG_VSEL VREG_VOLTAGE_1_25
-#define DVI_TIMING dvi_timing_1280x720p_30hz
+#define DVI_TIMING dvi_timing_1280x720p_reduced_30hz
 #include "moon_1bpp_1280x720.h"
 #define moon_img moon_1bpp_1280x720
 

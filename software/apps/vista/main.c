@@ -23,10 +23,10 @@
 // DVDD 1.2V (1.1V seems ok too)
 #define FRAME_WIDTH 320
 #define FRAME_HEIGHT 240
-#define VREG_VSEL VREG_VOLTAGE_1_15
+#define VREG_VSEL VREG_VOLTAGE_1_10
 #define DVI_TIMING dvi_timing_640x480p_60hz
 
-#define LED_PIN 21
+#define LED_PIN 25
 
 #define IMAGE_SIZE (640 * 480 * 2)
 #define IMAGE_BASE 0x1003c000

@@ -6,7 +6,7 @@ rm -rf raw rle pack.bin pack.uf2
 mkdir raw
 ffmpeg \
 	-ss 00:00:05.5 -to 00:00:12.5 \
-	-i src.mkv \
+	-i badapple.mp4 \
 	-f lavfi -i color=gray:s=1920x1080 \
 	-f lavfi -i color=black:s=1920x1080 \
 	-f lavfi -i color=white:s=1920x1080 \
