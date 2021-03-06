@@ -154,12 +154,16 @@ int __not_in_flash("main") main() {
   multicore_launch_core1(core1_main);
 
   uint heartbeat = 0;
+  uint32_t encode_time = 0;
 
   sem_release(&dvi_start_sem);
   while (1) {
     if (++heartbeat >= 30) {
       heartbeat = 0;
       gpio_xor_mask(1u << LED_PIN);
+
+      printf("Encode total time: %ldus\n", encode_time);
+      encode_time = 0;
     }
     if (fractal.done) zoom_mandel();
     if (heartbeat & 1) init_palette();
@@ -170,7 +174,9 @@ int __not_in_flash("main") main() {
       multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
   
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
+      absolute_time_t start_time = get_absolute_time();
       tmds_encode_palette_data((const uint32_t*)(&mandel[(y+1)*FRAME_WIDTH]), tmds_palette, our_tmds_buf, FRAME_WIDTH, PALETTE_BITS);
+      encode_time += absolute_time_diff_us(start_time, get_absolute_time());
       
       multicore_fifo_pop_blocking();
 
@@ -186,7 +192,9 @@ int __not_in_flash("main") main() {
       multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
   
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
+      absolute_time_t start_time = get_absolute_time();
       tmds_encode_palette_data((const uint32_t*)(&mandel[y*FRAME_WIDTH]), tmds_palette, our_tmds_buf, FRAME_WIDTH, PALETTE_BITS);
+      encode_time += absolute_time_diff_us(start_time, get_absolute_time());
       
       multicore_fifo_pop_blocking();
 
