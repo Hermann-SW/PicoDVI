@@ -55,69 +55,69 @@ extern uint32_t tmds_table_fullres_x[];
 extern uint32_t tmds_table_fullres_y[];
 
 static inline void init_interp_for_encode() {
-	interp0_hw->ctrl[1] = 0x00002117u;
-	interp1_hw->ctrl[1] = 0x00002117u;
-	uint32_t lutbase = (uint32_t)(get_core_num() ? tmds_table_fullres_x : tmds_table_fullres_y);
-	interp0_hw->base[2] = (uint32_t)lutbase;
-	interp1_hw->base[2] = (uint32_t)lutbase;
+  interp0_hw->ctrl[1] = 0x00002117u;
+  interp1_hw->ctrl[1] = 0x00002117u;
+  uint32_t lutbase = (uint32_t)(get_core_num() ? tmds_table_fullres_x : tmds_table_fullres_y);
+  interp0_hw->base[2] = (uint32_t)lutbase;
+  interp1_hw->base[2] = (uint32_t)lutbase;
 }
 
 static inline void prepare_scanline_core1(const uint32_t *colourbuf, uint32_t *tmdsbuf) {
-	const uint pixwidth = 640;
+  const uint pixwidth = 640;
 #if 0
-	// Blue
-	interp0_hw->ctrl[0] = 0x02801c60u;
-	interp1_hw->ctrl[0] = 0x02801c6du;
-	tmds_fullres_encode_loop_16bpp_leftshift_x(colourbuf, tmdsbuf, pixwidth, 3);
-	// Green
-	interp0_hw->ctrl[0] = 0x02801c43u;
-	interp1_hw->ctrl[0] = 0x02801c53u;
-	tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + pixwidth, pixwidth);
-	// Red
-	interp0_hw->ctrl[0] = 0x02801c68u;
-	interp1_hw->ctrl[0] = 0x00001c78u;
-	tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + 2 * pixwidth, pixwidth);
+  // Blue
+  interp0_hw->ctrl[0] = 0x02801c60u;
+  interp1_hw->ctrl[0] = 0x02801c6du;
+  tmds_fullres_encode_loop_16bpp_leftshift_x(colourbuf, tmdsbuf, pixwidth, 3);
+  // Green
+  interp0_hw->ctrl[0] = 0x02801c43u;
+  interp1_hw->ctrl[0] = 0x02801c53u;
+  tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + pixwidth, pixwidth);
+  // Red
+  interp0_hw->ctrl[0] = 0x02801c68u;
+  interp1_hw->ctrl[0] = 0x00001c78u;
+  tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + 2 * pixwidth, pixwidth);
 #else
   interp0_hw->base[2] = (uint32_t)tmds_palette_blue;
   interp1_hw->base[2] = (uint32_t)tmds_palette_blue;
   interp0_hw->ctrl[0] = 0x02801c40u;
   interp1_hw->ctrl[0] = 0x02801c50u;
-	tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf, pixwidth);
+  tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf, pixwidth);
 
   interp0_hw->base[2] = (uint32_t)tmds_palette_green;
   interp1_hw->base[2] = (uint32_t)tmds_palette_green;
   interp0_hw->ctrl[0] = 0x02801c40u;
   interp1_hw->ctrl[0] = 0x02801c50u;
-	tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + pixwidth, pixwidth);
+  tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + pixwidth, pixwidth);
 
   interp0_hw->base[2] = (uint32_t)tmds_palette_red;
   interp1_hw->base[2] = (uint32_t)tmds_palette_red;
   interp0_hw->ctrl[0] = 0x02801c40u;
   interp1_hw->ctrl[0] = 0x02801c50u;
-	tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + pixwidth * 2, pixwidth);
+  tmds_fullres_encode_loop_16bpp_x(colourbuf, tmdsbuf + pixwidth * 2, pixwidth);
 #endif
 
 }
 
 static inline void prepare_scanline_core0(const uint32_t *colourbuf, uint32_t *tmdsbuf) {
-	const uint pixwidth = 640;
+  const uint pixwidth = 640;
   interp0_hw->base[2] = (uint32_t)tmds_palette_blue;
   interp1_hw->base[2] = (uint32_t)tmds_palette_blue;
   interp0_hw->ctrl[0] = 0x02801c40u;
   interp1_hw->ctrl[0] = 0x02801c50u;
-	tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf, pixwidth);
+  tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf, pixwidth);
 
   interp0_hw->base[2] = (uint32_t)tmds_palette_green;
   interp1_hw->base[2] = (uint32_t)tmds_palette_green;
   interp0_hw->ctrl[0] = 0x02801c40u;
   interp1_hw->ctrl[0] = 0x02801c50u;
-	tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf + pixwidth, pixwidth);
+  tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf + pixwidth, pixwidth);
 
   interp0_hw->base[2] = (uint32_t)tmds_palette_red;
   interp1_hw->base[2] = (uint32_t)tmds_palette_red;
   interp0_hw->ctrl[0] = 0x02801c40u;
   interp1_hw->ctrl[0] = 0x02801c50u;
-	tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf + pixwidth * 2, pixwidth);
+  tmds_fullres_encode_loop_16bpp_y(colourbuf, tmdsbuf + pixwidth * 2, pixwidth);
 }
 
 void init_palette() {
@@ -155,73 +155,73 @@ void __time_critical_func(fill_colour_buf)(uint16_t* colour_buf, uint32_t y) {
 // Core 1 handles DMA IRQs and runs TMDS encode on scanline buffers it
 // receives through the mailbox FIFO
 void __not_in_flash("core1_main") core1_main() {
-	dvi_register_irqs_this_core(&dvi0, DMA_IRQ_0);
-	sem_acquire_blocking(&dvi_start_sem);
-	dvi_start(&dvi0);
+  dvi_register_irqs_this_core(&dvi0, DMA_IRQ_0);
+  sem_acquire_blocking(&dvi_start_sem);
+  dvi_start(&dvi0);
 
-	init_interp_for_encode();
+  init_interp_for_encode();
 
-	while (1) {
-		const uint32_t *colourbuf = (const uint32_t*)multicore_fifo_pop_blocking();
-		uint32_t *tmdsbuf = (uint32_t*)multicore_fifo_pop_blocking();
-		prepare_scanline_core1(colourbuf, tmdsbuf);
-		multicore_fifo_push_blocking(0);
-	}
-	__builtin_unreachable();
+  while (1) {
+    const uint32_t *colourbuf = (const uint32_t*)multicore_fifo_pop_blocking();
+    uint32_t *tmdsbuf = (uint32_t*)multicore_fifo_pop_blocking();
+    prepare_scanline_core1(colourbuf, tmdsbuf);
+    multicore_fifo_push_blocking(0);
+  }
+  __builtin_unreachable();
 }
 
 uint16_t img_buf[2 * FRAME_WIDTH];
 
 int __not_in_flash("main") main() {
-	vreg_set_voltage(VREG_VSEL);
-	sleep_ms(10);
-	set_sys_clock_khz(DVI_TIMING.bit_clk_khz, true);
+  vreg_set_voltage(VREG_VSEL);
+  sleep_ms(10);
+  set_sys_clock_khz(DVI_TIMING.bit_clk_khz, true);
 
-	setup_default_uart();
+  setup_default_uart();
 
-	gpio_init(LED_PIN);
-	gpio_set_dir(LED_PIN, GPIO_OUT);
-	// gpio_put(LED_PIN, 1);
+  gpio_init(LED_PIN);
+  gpio_set_dir(LED_PIN, GPIO_OUT);
+  // gpio_put(LED_PIN, 1);
   
   init_palette();
 
-	printf("Configuring DVI\n");
+  printf("Configuring DVI\n");
 
-	dvi0.timing = &DVI_TIMING;
-	dvi0.ser_cfg = DEFAULT_DVI_SERIAL_CONFIG;
-	dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
+  dvi0.timing = &DVI_TIMING;
+  dvi0.ser_cfg = DEFAULT_DVI_SERIAL_CONFIG;
+  dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
-	printf("Core 1 start\n");
-	sem_init(&dvi_start_sem, 0, 1);
-	hw_set_bits(&bus_ctrl_hw->priority, BUSCTRL_BUS_PRIORITY_PROC1_BITS);
-	multicore_launch_core1(core1_main);
+  printf("Core 1 start\n");
+  sem_init(&dvi_start_sem, 0, 1);
+  hw_set_bits(&bus_ctrl_hw->priority, BUSCTRL_BUS_PRIORITY_PROC1_BITS);
+  multicore_launch_core1(core1_main);
 
-	uint heartbeat = 0;
+  uint heartbeat = 0;
 
-	init_interp_for_encode();
+  init_interp_for_encode();
 
-	sem_release(&dvi_start_sem);
-	while (1) {
-		if (++heartbeat >= 30) {
-			heartbeat = 0;
-			gpio_xor_mask(1u << LED_PIN);
-		}
-		for (int y = 0; y < FRAME_HEIGHT; y += 2) {
+  sem_release(&dvi_start_sem);
+  while (1) {
+    if (++heartbeat >= 30) {
+      heartbeat = 0;
+      gpio_xor_mask(1u << LED_PIN);
+    }
+    for (int y = 0; y < FRAME_HEIGHT; y += 2) {
       fill_colour_buf(img_buf, y);
 
-			uint32_t *our_tmds_buf, *their_tmds_buf;
-			queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
-			multicore_fifo_push_blocking((uint32_t)(img_buf));
-			multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
-	
-			queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
-			prepare_scanline_core0((const uint32_t*)(img_buf + FRAME_WIDTH), our_tmds_buf);
-			
-			multicore_fifo_pop_blocking();
-			queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
-			queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
-		}
-	}
-	__builtin_unreachable();
+      uint32_t *our_tmds_buf, *their_tmds_buf;
+      queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
+      multicore_fifo_push_blocking((uint32_t)(img_buf));
+      multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
+  
+      queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
+      prepare_scanline_core0((const uint32_t*)(img_buf + FRAME_WIDTH), our_tmds_buf);
+      
+      multicore_fifo_pop_blocking();
+      queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
+      queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
+    }
+  }
+  __builtin_unreachable();
 }
-	
+  
