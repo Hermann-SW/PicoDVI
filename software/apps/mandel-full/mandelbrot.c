@@ -1,3 +1,5 @@
+// Copyright (C) Michael Bell 2021
+
 #include <stdio.h>
 #include <stdlib.h>
 #include "pico/stdlib.h"
