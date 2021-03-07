@@ -36,7 +36,7 @@
 
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
-#define PALETTE_BITS 6
+#define PALETTE_BITS 8
 #define PALETTE_SIZE (1 << PALETTE_BITS)
 uint16_t palette[PALETTE_SIZE];
 
@@ -71,14 +71,14 @@ void init_mandel() {
   for (int y = 0; y < (FRAME_HEIGHT / 2); ++y) {
     uint8_t* buf = &mandel[y * FRAME_WIDTH];
     for (int i = 0; i < FRAME_WIDTH; ++i) {
-      buf[i] = ((i + y) & 0x3f) << 2;
+      buf[i] = ((i + y) & 0x3f);
     }
   }
 
   fractal.buff = mandel;
   fractal.rows = FRAME_HEIGHT / 2;
   fractal.cols = FRAME_WIDTH;
-  fractal.max_iter = 63;
+  fractal.max_iter = PALETTE_SIZE;
   fractal.iter_offset = 0;
   fractal.minx = -2.25f;
   fractal.maxx = 0.75f;
@@ -88,7 +88,7 @@ void init_mandel() {
   init_fractal(&fractal);
 }
 
-#define NUM_ZOOMS 32
+#define NUM_ZOOMS 64
 static uint32_t zoom_count = 0;
 
 void zoom_mandel() {
@@ -101,10 +101,10 @@ void zoom_mandel() {
 
   printf("Zoom: %ld\n", zoom_count);
 
-  float zoomx = -.75f - .56f * ((float)zoom_count / (float)NUM_ZOOMS);
+  float zoomx = -.75f - .7f * ((float)zoom_count / (float)NUM_ZOOMS);
   float sizex = fractal.maxx - fractal.minx;
   float sizey = fractal.miny * -2.f;
-  float zoomr = 0.99f * 0.5f;
+  float zoomr = 0.96f * 0.5f;
   fractal.minx = zoomx - zoomr * sizex;
   fractal.maxx = zoomx + zoomr * sizex;
   fractal.miny = -zoomr * sizey;
@@ -124,6 +124,7 @@ void __not_in_flash("core1_main") core1_main() {
     uint32_t *tmdsbuf = (uint32_t*)multicore_fifo_pop_blocking();
     tmds_encode_palette_data((const uint32_t*)colourbuf, tmds_palette, tmdsbuf, FRAME_WIDTH, PALETTE_BITS);
     multicore_fifo_push_blocking(0);
+    while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= 5) generate_steal_one(&fractal);
   }
   __builtin_unreachable();
 }
@@ -166,7 +167,7 @@ int __not_in_flash("main") main() {
       encode_time = 0;
     }
     if (fractal.done) zoom_mandel();
-    if (heartbeat & 1) init_palette();
+    //if (heartbeat & 1) init_palette();
     for (int y = 0; y < FRAME_HEIGHT / 2; y += 2) {
       uint32_t *our_tmds_buf, *their_tmds_buf;
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
@@ -180,7 +181,7 @@ int __not_in_flash("main") main() {
       
       multicore_fifo_pop_blocking();
 
-      while (!queue_is_empty(&dvi0.q_tmds_valid)) generate_one_forward(&fractal);
+      while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= 5) generate_one_forward(&fractal);
 
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
@@ -198,7 +199,7 @@ int __not_in_flash("main") main() {
       
       multicore_fifo_pop_blocking();
 
-      while (!queue_is_empty(&dvi0.q_tmds_valid)) generate_one_forward(&fractal);
+      while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= 5) generate_one_forward(&fractal);
 
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
