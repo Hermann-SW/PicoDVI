@@ -8,13 +8,7 @@ pico_sdk_init()
 
 add_compile_options(-Wall)
 
-## todo board files
-add_definitions(-DDEBUG_PIN0=22 -DDEBUG_N_PINS=4)
-add_definitions(-DPICO_DEFAULT_UART_TX_PIN=0 -DPICO_DEFAULT_UART_RX_PIN=1)
-
-add_definitions(-DDEFAULT_DVI_SERIAL_CONFIG=pico_sock_cfg)
-# add_definitions(-DRUN_FROM_CRYSTAL=1)
-# add_definitions(-DDVI_SERIAL_DEBUG=1)
+# add_definitions(-DDEFAULT_DVI_SERIAL_CONFIG=picodvi_pmod0_cfg)
 
 include_directories(
 	assets
