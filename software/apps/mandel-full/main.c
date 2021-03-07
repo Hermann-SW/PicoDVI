@@ -29,14 +29,12 @@
 #define VREG_VSEL VREG_VOLTAGE_1_10
 #define DVI_TIMING dvi_timing_640x480p_60hz
 
-#define LED_PIN 25
-
 #define N_IMAGES 3
 #define FRAMES_PER_IMAGE 300
 
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
-#define PALETTE_BITS 8
+#define PALETTE_BITS 6
 #define PALETTE_SIZE (1 << PALETTE_BITS)
 uint16_t palette[PALETTE_SIZE];
 
@@ -136,9 +134,8 @@ int __not_in_flash("main") main() {
 
   setup_default_uart();
 
-  gpio_init(LED_PIN);
-  gpio_set_dir(LED_PIN, GPIO_OUT);
-  // gpio_put(LED_PIN, 1);
+  gpio_init(PICO_DEFAULT_LED_PIN);
+  gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
   
   init_palette();
   init_mandel();
@@ -161,7 +158,7 @@ int __not_in_flash("main") main() {
   while (1) {
     if (++heartbeat >= 30) {
       heartbeat = 0;
-      gpio_xor_mask(1u << LED_PIN);
+      gpio_xor_mask(1u << PICO_DEFAULT_LED_PIN);
 
       printf("Encode total time: %ldus\n", encode_time);
       encode_time = 0;
