@@ -34,7 +34,7 @@
 
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
-#define PALETTE_BITS 6
+#define PALETTE_BITS 8
 #define PALETTE_SIZE (1 << PALETTE_BITS)
 uint16_t palette[PALETTE_SIZE];
 
