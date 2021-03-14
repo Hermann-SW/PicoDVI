@@ -24,17 +24,21 @@
 
 // TMDS bit clock 252 MHz
 // DVDD 1.2V (1.1V seems ok too)
+#if 1
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
 #define VREG_VSEL VREG_VOLTAGE_1_10
 #define DVI_TIMING dvi_timing_640x480p_60hz
-
-#define N_IMAGES 3
-#define FRAMES_PER_IMAGE 300
+#else
+#define FRAME_WIDTH 800
+#define FRAME_HEIGHT 480
+#define VREG_VSEL VREG_VOLTAGE_1_15
+#define DVI_TIMING dvi_timing_800x480p_60hz
+#endif
 
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
-#define PALETTE_BITS 8
+#define PALETTE_BITS 7
 #define PALETTE_SIZE (1 << PALETTE_BITS)
 uint16_t palette[PALETTE_SIZE];
 
@@ -53,8 +57,8 @@ void init_palette() {
     uint8_t c = i + palette_offset;
     if (c < 0x20) palette[i] = c;
     else if (c < 0x40) palette[i] = (c - 0x20) << 6;
-    else if (c < 0x60) palette[i] = (c - 0x40) << 11;
-    else if (c < 0x80) palette[i] = ((c - 0x60) & 0x1f) * 0x0840;
+    //else if (c < 0x60) palette[i] = (c - 0x40) << 11;
+    else if (c < 0x80) palette[i] = ((c - 0x40) >> 1 & 0x1f) * 0x0801;
     else if (c < 0xa0) palette[i] = ((c - 0x80) & 0x1f) * 0x0041;
     else if (c < 0xc0) palette[i] = ((c - 0xa0) & 0x1f) * 0x0801;
     else if (c < 0xe0) palette[i] = ((c - 0xc0) & 0x1f) * 0x0841;
@@ -65,7 +69,20 @@ void init_palette() {
   tmds_setup_palette_symbols(palette, tmds_palette, PALETTE_SIZE);
 }
 
+#define INTERP_FIXED_PT 21
+static uint8_t interp_line[FRAME_WIDTH];
+
 void init_mandel() {
+  interp_config cfg = interp_default_config();
+  interp_config_set_add_raw(&cfg, true);
+  interp_config_set_shift(&cfg, INTERP_FIXED_PT);
+  interp_config_set_mask(&cfg, 0, 31 - INTERP_FIXED_PT);
+  interp_config_set_signed(&cfg, true);
+  interp_set_config(interp0, 0, &cfg);
+  interp0->base[1] = 0;
+  interp0->base[2] = (uintptr_t)interp_line;
+  interp0->accum[1] = 0;
+
   for (int y = 0; y < (FRAME_HEIGHT / 2); ++y) {
     uint8_t* buf = &mandel[y * FRAME_WIDTH];
     for (int i = 0; i < FRAME_WIDTH; ++i) {
@@ -87,7 +104,13 @@ void init_mandel() {
 }
 
 #define NUM_ZOOMS 64
+#define ZOOM_RATIO 0.92f
+#define ZOOM_SLIDE -1.455f
 static uint32_t zoom_count = 0;
+static struct {
+  float minx;
+  float miny;
+} next_fractal;
 
 void zoom_mandel() {
   if (++zoom_count == NUM_ZOOMS)
@@ -99,15 +122,37 @@ void zoom_mandel() {
 
   printf("Zoom: %ld\n", zoom_count);
 
-  float zoomx = -.75f - .7f * ((float)zoom_count / (float)NUM_ZOOMS);
   float sizex = fractal.maxx - fractal.minx;
-  float sizey = fractal.miny * -2.f;
-  float zoomr = 0.96f * 0.5f;
-  fractal.minx = zoomx - zoomr * sizex;
-  fractal.maxx = zoomx + zoomr * sizex;
-  fractal.miny = -zoomr * sizey;
+  fractal.minx = next_fractal.minx;
+  fractal.maxx = next_fractal.minx + ZOOM_RATIO * sizex;
+  fractal.miny = next_fractal.miny;
   fractal.maxy = 0.f + fractal.miny / FRAME_HEIGHT;
   init_fractal(&fractal);
+}
+
+void interp_mandel(int y) {
+  if (y == 0) {
+    float zoomx = -.75f + ZOOM_SLIDE * ((float)(zoom_count + 1) / (float)NUM_ZOOMS);
+    float sizex = ZOOM_RATIO * (fractal.maxx - fractal.minx);
+    next_fractal.minx = zoomx - 0.5f * sizex;
+    if (next_fractal.minx < fractal.minx) next_fractal.minx = fractal.minx;
+    next_fractal.miny = ZOOM_RATIO * fractal.miny;
+  }
+
+  int32_t y_idx = (int32_t)(((next_fractal.miny - fractal.miny) / (fractal.maxy - fractal.miny)) * (FRAME_HEIGHT / 2) + (ZOOM_RATIO * y));
+  int32_t x_start = (int32_t)(((next_fractal.minx - fractal.minx) / (fractal.maxx - fractal.minx)) * FRAME_WIDTH * (float)(1 << INTERP_FIXED_PT));
+  interp0->base[0] = (int32_t)(ZOOM_RATIO * (1 << INTERP_FIXED_PT));
+
+  x_start += interp0->base[0] >> 1;
+  interp0->accum[0] = x_start;
+
+  // Later can do this by DMA.
+  memcpy(interp_line, &mandel[y_idx * FRAME_WIDTH], FRAME_WIDTH);
+
+  for (int i = 0; i < FRAME_WIDTH; ++i)
+  {
+    mandel[y * FRAME_WIDTH + i] = *(uint8_t*)interp0->pop[2];
+  }
 }
 
 // Core 1 handles DMA IRQs and runs TMDS encode on scanline buffers it
@@ -151,6 +196,8 @@ int __not_in_flash("main") main() {
   hw_set_bits(&bus_ctrl_hw->priority, BUSCTRL_BUS_PRIORITY_PROC1_BITS);
   multicore_launch_core1(core1_main);
 
+  int interp_y = 0;
+
   uint heartbeat = 0;
   uint32_t encode_time = 0;
 
@@ -163,7 +210,10 @@ int __not_in_flash("main") main() {
       printf("Encode total time: %ldus\n", encode_time);
       encode_time = 0;
     }
-    if (fractal.done) zoom_mandel();
+    if (fractal.done && interp_y == FRAME_HEIGHT / 2) {
+      zoom_mandel();
+      interp_y = 0;
+    }
     //if (heartbeat & 1) init_palette();
     for (int y = 0; y < FRAME_HEIGHT / 2; y += 2) {
       uint32_t *our_tmds_buf, *their_tmds_buf;
@@ -178,7 +228,12 @@ int __not_in_flash("main") main() {
       
       multicore_fifo_pop_blocking();
 
-      while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= 5) generate_one_forward(&fractal);
+      while (queue_get_level(&dvi0.q_tmds_valid) >= 5) {
+        if (!fractal.done) generate_one_forward(&fractal);
+        else if (interp_y != FRAME_HEIGHT / 2) {
+          interp_mandel(interp_y++);
+        }
+      }
 
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
@@ -196,7 +251,12 @@ int __not_in_flash("main") main() {
       
       multicore_fifo_pop_blocking();
 
-      while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= 5) generate_one_forward(&fractal);
+      while (queue_get_level(&dvi0.q_tmds_valid) >= 5) {
+        if (!fractal.done) generate_one_forward(&fractal);
+        else if (interp_y != FRAME_HEIGHT / 2) {
+          interp_mandel(interp_y++);
+        }
+      }
 
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
       queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
