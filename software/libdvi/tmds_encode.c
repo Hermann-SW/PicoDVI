@@ -19,10 +19,6 @@ const uint32_t __scratch_y("tmds_table_fullres_y") tmds_table_fullres_y[] = {
 #include "tmds_table_fullres.h"
 };
 
-const uint32_t tmds_table_fullres_noncritical[] = {
-#include "tmds_table_fullres.h"
-};
-
 // Configure an interpolator to extract a single colour channel from each of a pair
 // of pixels, with the first pixel's lsb at pixel_lsb, and the pixels being
 // pixel_width wide. Produce a LUT address for the first pixel's colour data on
@@ -171,6 +167,48 @@ void __not_in_flash_func(tmds_encode_data_channel_fullres_16bpp)(const uint32_t 
 #endif
 }
 
+static const uint8_t popcnt_lookup[16] = { 0, 1, 1, 2, 1, 2, 2, 3, 1, 2, 2, 3, 2, 3, 3, 4 };
+static inline uint32_t popcnt8(const uint32_t x)
+{
+	return popcnt_lookup[x >> 4] + popcnt_lookup[x & 0x0F];
+}
+static inline uint32_t popcnt12(const uint32_t x)
+{
+	return popcnt_lookup[x >> 8] + popcnt8(x & 0xFF);
+}
+
+static inline int byte_imbalance(uint32_t x)
+{
+	return 2 * popcnt8(x) - 8;
+}
+
+static uint32_t tmds_encode_sym(uint8_t pixel, bool negative)
+{
+	uint32_t popcnt = popcnt8(pixel);
+	uint32_t sym = pixel & 1;
+	if (popcnt > 4 || (popcnt == 4 && sym == 0)) {
+		for (int i = 0; i < 7; ++i) {
+			sym |= (~((sym >> i) ^ (pixel >> (i + 1))) & 1) << (i + 1);
+		}
+	}
+	else {
+		for (int i = 0; i < 7; ++i) {
+			sym |= ( ((sym >> i) ^ (pixel >> (i + 1))) & 1) << (i + 1);
+		}
+		sym |= 0x100;
+	}
+
+	int imbalance = byte_imbalance(sym & 0xFF);
+  if (imbalance == 0) {
+		if ((sym & 0x100) == 0) sym ^= 0x2ff;
+	}
+	else if (!negative == (imbalance > 0)) {
+		sym ^= 0x2ff;
+	}
+
+	return sym | (((popcnt12(sym) * 2 - 10) & 0x3F) << 26);
+}
+
 // This takes a 16-bit (RGB 565) colour palette and makes palettes of TMDS symbols suitable
 // for performing fullres encode.
 // The TMDS palette buffer should be 6 * n_palette words long.
@@ -180,15 +218,36 @@ void tmds_setup_palette_symbols(const uint16_t *palette, uint32_t *tmds_palette,
 	uint32_t* tmds_palette_green = tmds_palette + 2 * n_palette;
 	uint32_t* tmds_palette_red = tmds_palette + 4 * n_palette;
 	for (int i = 0; i < n_palette; ++i) {
-		uint16_t blue = (palette[i] << 1) & 0x3e;
-		uint16_t green = (palette[i] >> 5) & 0x3f;
-		uint16_t red = (palette[i] >> 10) & 0x3e;
-		tmds_palette_blue[i] = tmds_table_fullres_noncritical[blue];
-		tmds_palette_blue[i + n_palette] = tmds_table_fullres_noncritical[64 + blue];
-		tmds_palette_green[i] = tmds_table_fullres_noncritical[green];
-		tmds_palette_green[i + n_palette] = tmds_table_fullres_noncritical[64 + green];
-		tmds_palette_red[i] = tmds_table_fullres_noncritical[red];
-		tmds_palette_red[i + n_palette] = tmds_table_fullres_noncritical[64 + red];
+		uint16_t blue = (palette[i] << 3) & 0xf8;
+		uint16_t green = (palette[i] >> 3) & 0xfc;
+		uint16_t red = (palette[i] >> 8) & 0xf8;
+		tmds_palette_blue[i] = tmds_encode_sym(blue, false);
+		tmds_palette_blue[i + n_palette] = tmds_encode_sym(blue, true);
+		tmds_palette_green[i] = tmds_encode_sym(green, false);
+		tmds_palette_green[i + n_palette] = tmds_encode_sym(green, true);
+		tmds_palette_red[i] = tmds_encode_sym(red, false);
+		tmds_palette_red[i + n_palette] = tmds_encode_sym(red, true);
+	}
+}
+
+// This takes a 24-bit (RGB 888) colour palette and makes palettes of TMDS symbols suitable
+// for performing fullres encode.
+// The TMDS palette buffer should be 6 * n_palette words long.
+// n_palette must be a power of 2 <= 256.
+void tmds_setup_palette24_symbols(const uint32_t *palette, uint32_t *tmds_palette, size_t n_palette) {
+	uint32_t* tmds_palette_blue = tmds_palette;
+	uint32_t* tmds_palette_green = tmds_palette + 2 * n_palette;
+	uint32_t* tmds_palette_red = tmds_palette + 4 * n_palette;
+	for (int i = 0; i < n_palette; ++i) {
+		uint16_t blue = palette[i] & 0xff;
+		uint16_t green = (palette[i] >> 8) & 0xff;
+		uint16_t red = (palette[i] >> 16) & 0xff;
+		tmds_palette_blue[i] = tmds_encode_sym(blue, false);
+		tmds_palette_blue[i + n_palette] = tmds_encode_sym(blue, true);
+		tmds_palette_green[i] = tmds_encode_sym(green, false);
+		tmds_palette_green[i + n_palette] = tmds_encode_sym(green, true);
+		tmds_palette_red[i] = tmds_encode_sym(red, false);
+		tmds_palette_red[i + n_palette] = tmds_encode_sym(red, true);
 	}
 }
 
