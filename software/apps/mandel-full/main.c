@@ -36,6 +36,9 @@
 #define DVI_TIMING dvi_timing_800x480p_60hz
 #endif
 
+// Whether to time the encode and print timing to UART
+#define TIMING_DEBUG
+
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
 #define PALETTE_BITS 7
@@ -130,7 +133,7 @@ void zoom_mandel() {
   init_fractal(&fractal);
 }
 
-void interp_mandel(int y) {
+void __not_in_flash_func(interp_mandel)(int y) {
   if (y == 0) {
     float zoomx = -.75f + ZOOM_SLIDE * ((float)(zoom_count + 1) / (float)NUM_ZOOMS);
     float sizex = ZOOM_RATIO * (fractal.maxx - fractal.minx);
@@ -192,10 +195,15 @@ void __not_in_flash("core1_main") core1_main() {
   dvi_start(&dvi0);
 
   while (1) {
-    const uint32_t *colourbuf = (const uint32_t*)multicore_fifo_pop_blocking();
-    uint32_t *tmdsbuf = (uint32_t*)multicore_fifo_pop_blocking();
-    tmds_encode_palette_data((const uint32_t*)colourbuf, tmds_palette, tmdsbuf, FRAME_WIDTH, PALETTE_BITS);
-    multicore_fifo_push_blocking(0);
+    while (!multicore_fifo_rvalid())
+      __wfe();
+    const uint32_t *colourbuf = (uint32_t*)sio_hw->fifo_rd;
+    while (!multicore_fifo_rvalid())
+      ;
+    uint32_t *tmdsbuf = (uint32_t*)sio_hw->fifo_rd;
+    tmds_encode_palette_data(colourbuf, tmds_palette, tmdsbuf, FRAME_WIDTH, PALETTE_BITS);
+    sio_hw->fifo_wr = 0;
+    __sev();
     while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= 5) generate_steal_one(&fractal);
   }
   __builtin_unreachable();
@@ -228,7 +236,9 @@ int __not_in_flash("main") main() {
   int interp_y = 0;
 
   uint heartbeat = 0;
+#ifdef TIMING_DEBUG
   uint32_t encode_time = 0;
+#endif
 
   sem_release(&dvi_start_sem);
   while (1) {
@@ -236,8 +246,10 @@ int __not_in_flash("main") main() {
       heartbeat = 0;
       gpio_xor_mask(1u << PICO_DEFAULT_LED_PIN);
 
+#ifdef TIMING_DEBUG
       printf("Encode total time: %ldus\n", encode_time);
       encode_time = 0;
+#endif      
     }
     if (fractal.done && interp_y == FRAME_HEIGHT / 2) {
       zoom_mandel();
@@ -247,15 +259,22 @@ int __not_in_flash("main") main() {
     for (int y = 0; y < FRAME_HEIGHT / 2; y += 2) {
       uint32_t *our_tmds_buf, *their_tmds_buf;
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
-      multicore_fifo_push_blocking((uint32_t)(&mandel[y*FRAME_WIDTH]));
-      multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
+      sio_hw->fifo_wr = (uint32_t)(&mandel[y*FRAME_WIDTH]);
+      sio_hw->fifo_wr = (uint32_t)their_tmds_buf;
+      __sev();
   
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
+#ifdef TIMING_DEBUG
       absolute_time_t start_time = get_absolute_time();
+#endif
       tmds_encode_palette_data((const uint32_t*)(&mandel[(y+1)*FRAME_WIDTH]), tmds_palette, our_tmds_buf, FRAME_WIDTH, PALETTE_BITS);
+#ifdef TIMING_DEBUG
       encode_time += absolute_time_diff_us(start_time, get_absolute_time());
-      
-      multicore_fifo_pop_blocking();
+#endif
+
+      while (!multicore_fifo_rvalid())
+        __wfe();
+      (void)sio_hw->fifo_rd;
 
       while (queue_get_level(&dvi0.q_tmds_valid) >= 5) {
         if (!fractal.done) generate_one_forward(&fractal);
@@ -270,15 +289,23 @@ int __not_in_flash("main") main() {
     for (int y = FRAME_HEIGHT / 2 - 2; y >= 0; y -= 2) {
       uint32_t *our_tmds_buf, *their_tmds_buf;
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
-      multicore_fifo_push_blocking((uint32_t)(&mandel[(y+1)*FRAME_WIDTH]));
-      multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
+
+      sio_hw->fifo_wr = (uint32_t)(&mandel[(y+1)*FRAME_WIDTH]);
+      sio_hw->fifo_wr = (uint32_t)their_tmds_buf;
+      __sev();
   
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
+#ifdef TIMING_DEBUG
       absolute_time_t start_time = get_absolute_time();
+#endif
       tmds_encode_palette_data((const uint32_t*)(&mandel[y*FRAME_WIDTH]), tmds_palette, our_tmds_buf, FRAME_WIDTH, PALETTE_BITS);
+#ifdef TIMING_DEBUG
       encode_time += absolute_time_diff_us(start_time, get_absolute_time());
+#endif
       
-      multicore_fifo_pop_blocking();
+      while (!multicore_fifo_rvalid())
+        __wfe();
+      (void)sio_hw->fifo_rd;
 
       while (queue_get_level(&dvi0.q_tmds_valid) >= 5) {
         if (!fractal.done) generate_one_forward(&fractal);

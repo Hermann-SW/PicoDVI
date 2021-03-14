@@ -7,13 +7,18 @@ add_executable(mandel-full
   mandelbrot.c
 )
 
+pico_define_boot_stage2(mandel-full_boot2 ${PICO_DEFAULT_BOOT_STAGE2_FILE})
+target_compile_definitions(mandel-full_boot2 PRIVATE PICO_FLASH_SPI_CLKDIV=4)
+pico_set_boot_stage2(mandel-full mandel-full_boot2)
+
 target_compile_definitions(mandel-full PRIVATE
 	DVI_VERTICAL_REPEAT=1
 	DVI_N_TMDS_BUFFERS=8
 	DVI_SYMBOLS_PER_WORD=2
+	PICO_FLASH_SPI_CLKDIV=4
 	)
 
-target_compile_definitions(mandel-full PRIVATE PICO_STACK_SIZE=0x400)
+target_compile_definitions(mandel-full PRIVATE PICO_STACK_SIZE=0x200)
 
 
 target_link_libraries(mandel-full

@@ -35,17 +35,6 @@ static inline fixed_pt_t mul(fixed_pt_t a, fixed_pt_t b)
 // a * b * 2
 static inline fixed_pt_t mul2(fixed_pt_t a, fixed_pt_t b)
 {
-#if 0
-  int32_t ah = a >> 12;
-  int32_t al = a & 0xfff;
-  int32_t bh = b >> 13;
-  int32_t bl = b & 0x1fff;
-
-  interp0->accum[0] = ah * bl;
-  interp0->accum[1] = al * bh;
-  interp0->base[2] = ah * bh;
-  return interp0->peek[2];
-#else
   int32_t ah = a >> 12;
   int32_t al = (a & 0xfff) << 1;
   int32_t bh = b >> 13;
@@ -54,7 +43,6 @@ static inline fixed_pt_t mul2(fixed_pt_t a, fixed_pt_t b)
   fixed_pt_t r = ((ah * bl) + (al * bh)) >> 13;
   r += ah * bh;
   return r;
-#endif
 }
 
 static inline fixed_pt_t square(fixed_pt_t a) {
@@ -70,20 +58,6 @@ fixed_pt_t make_fixed(int32_t x) {
 
 fixed_pt_t make_fixedf(float x) {
   return (int32_t)(x * (67108864.f));
-}
-
-void mandel_init()
-{
-  // Not curently used
-  interp_config cfg = interp_default_config();
-  interp_config_set_add_raw(&cfg, false);
-  interp_config_set_shift(&cfg, 13);
-  interp_config_set_mask(&cfg, 0, 31 - 13);
-  interp_config_set_signed(&cfg, true);
-  interp_set_config(interp0, 0, &cfg);
-  interp_config_set_shift(&cfg, 12);
-  interp_config_set_mask(&cfg, 0, 31 - 12);
-  interp_set_config(interp0, 1, &cfg);
 }
 
 void init_fractal(FractalBuffer* f)
@@ -194,7 +168,7 @@ void generate_fractal(FractalBuffer* f)
   f->done = true;
 }
 
-void generate_one_forward(FractalBuffer* f)
+void __not_in_flash_func(generate_one_forward)(FractalBuffer* f)
 {
   if (f->done) return;
 
@@ -212,7 +186,7 @@ void generate_one_forward(FractalBuffer* f)
   }
 }
 
-void generate_steal_one(FractalBuffer* f)
+void __not_in_flash_func(generate_steal_one)(FractalBuffer* f)
 {
   if (f->done) {
     return;
