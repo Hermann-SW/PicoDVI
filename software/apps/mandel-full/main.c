@@ -103,7 +103,7 @@ void init_mandel() {
   init_fractal(&fractal);
 }
 
-#define NUM_ZOOMS 64
+#define NUM_ZOOMS 63
 #define ZOOM_RATIO 0.92f
 #define ZOOM_SLIDE -1.455f
 static uint32_t zoom_count = 0;
@@ -142,16 +142,45 @@ void interp_mandel(int y) {
   int32_t y_idx = (int32_t)(((next_fractal.miny - fractal.miny) / (fractal.maxy - fractal.miny)) * (FRAME_HEIGHT / 2) + (ZOOM_RATIO * y));
   int32_t x_start = (int32_t)(((next_fractal.minx - fractal.minx) / (fractal.maxx - fractal.minx)) * FRAME_WIDTH * (float)(1 << INTERP_FIXED_PT));
   interp0->base[0] = (int32_t)(ZOOM_RATIO * (1 << INTERP_FIXED_PT));
+  interp0->base[2] = (uintptr_t)&mandel[y_idx * FRAME_WIDTH];
 
   x_start += interp0->base[0] >> 1;
   interp0->accum[0] = x_start;
 
-  // Later can do this by DMA.
-  memcpy(interp_line, &mandel[y_idx * FRAME_WIDTH], FRAME_WIDTH);
-
-  for (int i = 0; i < FRAME_WIDTH; ++i)
+  if (y != y_idx)
   {
-    mandel[y * FRAME_WIDTH + i] = *(uint8_t*)interp0->pop[2];
+    assert(y < y_idx);
+    for (int i = 0; i < FRAME_WIDTH; ++i)
+    {
+      mandel[y * FRAME_WIDTH + i] = *(uint8_t*)interp0->pop[2];
+    }
+  }
+  else
+  {
+    uint8_t* write_addr = &mandel[y * FRAME_WIDTH];
+    int i = 0;
+    for (; i < FRAME_WIDTH; ++i)
+    {
+      uint8_t* read_addr = (uint8_t*)interp0->pop[2];
+      if (write_addr < read_addr)
+        *write_addr++ = *read_addr;
+      else
+        break;
+    }
+
+    int x_inc = interp0->base[0];
+    interp0->accum[0] = x_start + x_inc * (FRAME_WIDTH - 1);
+    interp0->base[0] = -x_inc;
+    write_addr = &mandel[(y + 1) * FRAME_WIDTH - 1];
+
+    for (int j = FRAME_WIDTH - 1; j > i; --j)
+    {
+      uint8_t* read_addr = (uint8_t*)interp0->pop[2];
+      if (write_addr > read_addr)
+        *write_addr-- = *read_addr;
+      else
+        break;
+    }
   }
 }
 
