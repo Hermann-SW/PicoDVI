@@ -24,7 +24,7 @@
 
 // TMDS bit clock 252 MHz
 // DVDD 1.2V (1.1V seems ok too)
-#if 1
+#if 0
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
 #define VREG_VSEL VREG_VOLTAGE_1_10
@@ -38,6 +38,9 @@
 
 // Whether to time the encode and print timing to UART
 #define TIMING_DEBUG
+
+// Start queueing more DVI buffers when the queue gets to this level
+#define QUEUE_THRESHOLD (DVI_N_TMDS_BUFFERS - 3)
 
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
@@ -204,7 +207,7 @@ void __not_in_flash("core1_main") core1_main() {
     tmds_encode_palette_data(colourbuf, tmds_palette, tmdsbuf, FRAME_WIDTH, PALETTE_BITS);
     sio_hw->fifo_wr = 0;
     __sev();
-    while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= 5) generate_steal_one(&fractal);
+    while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= QUEUE_THRESHOLD) generate_steal_one(&fractal);
   }
   __builtin_unreachable();
 }
@@ -259,6 +262,7 @@ int __not_in_flash("main") main() {
     for (int y = 0; y < FRAME_HEIGHT / 2; y += 2) {
       uint32_t *our_tmds_buf, *their_tmds_buf;
       queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
+
       sio_hw->fifo_wr = (uint32_t)(&mandel[y*FRAME_WIDTH]);
       sio_hw->fifo_wr = (uint32_t)their_tmds_buf;
       __sev();
@@ -276,7 +280,7 @@ int __not_in_flash("main") main() {
         __wfe();
       (void)sio_hw->fifo_rd;
 
-      while (queue_get_level(&dvi0.q_tmds_valid) >= 5) {
+      while (queue_get_level(&dvi0.q_tmds_valid) >= QUEUE_THRESHOLD) {
         if (!fractal.done) generate_one_forward(&fractal);
         else if (interp_y != FRAME_HEIGHT / 2) {
           interp_mandel(interp_y++);
@@ -307,7 +311,7 @@ int __not_in_flash("main") main() {
         __wfe();
       (void)sio_hw->fifo_rd;
 
-      while (queue_get_level(&dvi0.q_tmds_valid) >= 5) {
+      while (queue_get_level(&dvi0.q_tmds_valid) >= QUEUE_THRESHOLD) {
         if (!fractal.done) generate_one_forward(&fractal);
         else if (interp_y != FRAME_HEIGHT / 2) {
           interp_mandel(interp_y++);
