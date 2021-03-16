@@ -44,9 +44,10 @@
 
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
-#define PALETTE_BITS 7
+#define PALETTE_BITS 8
 #define PALETTE_SIZE (1 << PALETTE_BITS)
-uint16_t palette[PALETTE_SIZE];
+#define MAX_ITER 0xe0
+uint32_t palette[PALETTE_SIZE];
 
 uint32_t tmds_palette[PALETTE_SIZE * 6];
 
@@ -61,18 +62,14 @@ void init_palette() {
   palette[0] = 0;
   for (int i = 1; i < PALETTE_SIZE; ++i) {
     uint8_t c = i + palette_offset;
-    if (c < 0x20) palette[i] = c;
-    else if (c < 0x40) palette[i] = (c - 0x20) << 6;
-    //else if (c < 0x60) palette[i] = (c - 0x40) << 11;
-    else if (c < 0x80) palette[i] = ((c - 0x40) >> 1 & 0x1f) * 0x0801;
-    else if (c < 0xa0) palette[i] = ((c - 0x80) & 0x1f) * 0x0041;
-    else if (c < 0xc0) palette[i] = ((c - 0xa0) & 0x1f) * 0x0801;
-    else if (c < 0xe0) palette[i] = ((c - 0xc0) & 0x1f) * 0x0841;
+    if (c < 0x20) palette[i] = c << 3;
+    else if (c < 0x60) palette[i] = (c - 0x20) << (8+2);
+    else if (c < 0xe0) palette[i] = (c - 0x60) << (16+1);
     else palette[i] = 0;
   }
   ++palette_offset;
 
-  tmds_setup_palette_symbols(palette, tmds_palette, PALETTE_SIZE);
+  tmds_setup_palette24_symbols(palette, tmds_palette, PALETTE_SIZE);
 }
 
 #define INTERP_FIXED_PT 21
@@ -99,7 +96,7 @@ void init_mandel() {
   fractal.buff = mandel;
   fractal.rows = FRAME_HEIGHT / 2;
   fractal.cols = FRAME_WIDTH;
-  fractal.max_iter = PALETTE_SIZE;
+  fractal.max_iter = MAX_ITER;
   fractal.iter_offset = 0;
   fractal.minx = -2.25f;
   fractal.maxx = 0.75f;
@@ -109,9 +106,9 @@ void init_mandel() {
   init_fractal(&fractal);
 }
 
-#define NUM_ZOOMS 63
-#define ZOOM_RATIO 0.92f
-#define ZOOM_SLIDE -1.455f
+#define NUM_ZOOMS 32
+#define ZOOM_RATIO 0.84f
+#define ZOOM_SLIDE -1.45f
 static uint32_t zoom_count = 0;
 static struct {
   float minx;

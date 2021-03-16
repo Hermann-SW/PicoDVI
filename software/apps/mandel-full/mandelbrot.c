@@ -168,7 +168,7 @@ void generate_fractal(FractalBuffer* f)
   f->done = true;
 }
 
-void __not_in_flash_func(generate_one_forward)(FractalBuffer* f)
+void __scratch_y("generate_one_forward") generate_one_forward(FractalBuffer* f)
 {
   if (f->done) return;
 
@@ -186,7 +186,7 @@ void __not_in_flash_func(generate_one_forward)(FractalBuffer* f)
   }
 }
 
-void __not_in_flash_func(generate_steal_one)(FractalBuffer* f)
+void __scratch_x("generate_steal_one") generate_steal_one(FractalBuffer* f)
 {
   if (f->done) {
     return;
