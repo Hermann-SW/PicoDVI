@@ -46,6 +46,8 @@ struct dvi_inst {
 	queue_t q_colour_valid;
 	queue_t q_colour_free;
 
+	// Memory buffer for queues
+	uint32_t queue_buf[4 * 9];
 };
 
 // Set up data structures and hardware for DVI.

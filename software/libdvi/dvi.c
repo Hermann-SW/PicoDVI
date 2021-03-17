@@ -30,10 +30,10 @@ void dvi_init(struct dvi_inst *inst, uint spinlock_tmds_queue, uint spinlock_col
 	inst->late_scanline_ctr = 0;
 	inst->tmds_buf_release_next = NULL;
 	inst->tmds_buf_release = NULL;
-	queue_init_with_spinlock(&inst->q_tmds_valid,   sizeof(void*),  8, spinlock_tmds_queue);
-	queue_init_with_spinlock(&inst->q_tmds_free,    sizeof(void*),  8, spinlock_tmds_queue);
-	queue_init_with_spinlock(&inst->q_colour_valid, sizeof(void*),  8, spinlock_colour_queue);
-	queue_init_with_spinlock(&inst->q_colour_free,  sizeof(void*),  8, spinlock_colour_queue);
+	queue_init_with_spinlock_u32(&inst->q_tmds_valid,   8, &inst->queue_buf[0],  spinlock_tmds_queue);
+	queue_init_with_spinlock_u32(&inst->q_tmds_free,    8, &inst->queue_buf[9],  spinlock_tmds_queue);
+	queue_init_with_spinlock_u32(&inst->q_colour_valid, 8, &inst->queue_buf[18], spinlock_colour_queue);
+	queue_init_with_spinlock_u32(&inst->q_colour_free,  8, &inst->queue_buf[27], spinlock_colour_queue);
 
 	dvi_setup_scanline_for_vblank(inst->timing, inst->dma_cfg, true, &inst->dma_list_vblank_sync);
 	dvi_setup_scanline_for_vblank(inst->timing, inst->dma_cfg, false, &inst->dma_list_vblank_nosync);
