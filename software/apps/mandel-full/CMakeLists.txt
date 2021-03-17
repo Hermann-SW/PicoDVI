@@ -13,7 +13,7 @@ pico_set_boot_stage2(mandel-full mandel-full_boot2)
 
 target_compile_definitions(mandel-full PRIVATE
 	DVI_VERTICAL_REPEAT=1
-	DVI_N_TMDS_BUFFERS=8
+	DVI_N_TMDS_BUFFERS=0
 	DVI_SYMBOLS_PER_WORD=2
 	PICO_FLASH_SPI_CLKDIV=4
 	)

@@ -30,26 +30,38 @@
 #define VREG_VSEL VREG_VOLTAGE_1_10
 #define DVI_TIMING dvi_timing_640x480p_60hz
 #else
+#if 0
 #define FRAME_WIDTH 800
 #define FRAME_HEIGHT 480
 #define VREG_VSEL VREG_VOLTAGE_1_15
 #define DVI_TIMING dvi_timing_800x480p_60hz
+#else
+#define FRAME_WIDTH 800
+#define FRAME_HEIGHT 540
+#define VREG_VSEL VREG_VOLTAGE_1_20
+#define DVI_TIMING dvi_timing_800x540p_60hz
+#endif
 #endif
 
 // Whether to time the encode and print timing to UART
 #define TIMING_DEBUG
 
 // Start queueing more DVI buffers when the queue gets to this level
-#define QUEUE_THRESHOLD (DVI_N_TMDS_BUFFERS - 3)
+#define NUM_TMDS_BUFFERS 6
+#define QUEUE_THRESHOLD (NUM_TMDS_BUFFERS - 2)
 
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
 #define PALETTE_BITS 8
 #define PALETTE_SIZE (1 << PALETTE_BITS)
 #define MAX_ITER 0xe0
-uint32_t palette[PALETTE_SIZE];
+
+// Reuse the image buffer to construct the palette as we
+// only use the palette before we start writing the image
+uint32_t* const palette = (uint32_t*)mandel;
 
 uint32_t tmds_palette[PALETTE_SIZE * 6];
+uint32_t tmds_buffers[NUM_TMDS_BUFFERS * 3 * FRAME_WIDTH / DVI_SYMBOLS_PER_WORD];
 
 struct dvi_inst dvi0;
 struct semaphore dvi_start_sem;
@@ -123,7 +135,9 @@ void zoom_mandel() {
     return;
   }
 
+#ifdef TIMING_DEBUG
   printf("Zoom: %ld\n", zoom_count);
+#endif
 
   float sizex = fractal.maxx - fractal.minx;
   fractal.minx = next_fractal.minx;
@@ -135,7 +149,7 @@ void zoom_mandel() {
 
 void __not_in_flash_func(interp_mandel)(int y) {
   if (y == 0) {
-    float zoomx = -.75f + ZOOM_SLIDE * ((float)(zoom_count + 1) / (float)NUM_ZOOMS);
+    float zoomx = -.744f + ZOOM_SLIDE * ((float)(zoom_count + 1) / (float)NUM_ZOOMS);
     float sizex = ZOOM_RATIO * (fractal.maxx - fractal.minx);
     next_fractal.minx = zoomx - 0.5f * sizex;
     if (next_fractal.minx < fractal.minx) next_fractal.minx = fractal.minx;
@@ -222,13 +236,25 @@ int __not_in_flash("main") main() {
   init_palette();
   init_mandel();
 
+#ifdef TIMING_DEBUG
   printf("Configuring DVI\n");
+#endif
 
   dvi0.timing = &DVI_TIMING;
   dvi0.ser_cfg = DEFAULT_DVI_SERIAL_CONFIG;
   dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
+#if 1
+  for (int i = 0; i < NUM_TMDS_BUFFERS; ++i)
+  {
+    void* tmdsbuf = &tmds_buffers[i * 3 * FRAME_WIDTH / DVI_SYMBOLS_PER_WORD];
+    queue_add_blocking_u32(&dvi0.q_tmds_free, &tmdsbuf);
+  }
+#endif
+
+#ifdef TIMING_DEBUG
   printf("Core 1 start\n");
+#endif
   sem_init(&dvi_start_sem, 0, 1);
   hw_set_bits(&bus_ctrl_hw->priority, BUSCTRL_BUS_PRIORITY_PROC1_BITS);
   multicore_launch_core1(core1_main);
@@ -236,6 +262,7 @@ int __not_in_flash("main") main() {
   int interp_y = 0;
 
   uint heartbeat = 0;
+  uint pause_count = 1800;
 #ifdef TIMING_DEBUG
   uint32_t encode_time = 0;
 #endif
@@ -252,8 +279,21 @@ int __not_in_flash("main") main() {
 #endif      
     }
     if (fractal.done && interp_y == FRAME_HEIGHT / 2) {
-      zoom_mandel();
-      interp_y = 0;
+      if (zoom_count != NUM_ZOOMS - 1) {
+        zoom_mandel();
+      }
+      else
+      {
+        // Pause on final frame
+        if (--pause_count == 0) {
+          pause_count = 1800;
+          zoom_mandel();
+        }
+      }
+      if (zoom_count != NUM_ZOOMS - 1) {
+        // Don't zoom after generating final frame
+        interp_y = 0;
+      }
     }
     //if (heartbeat & 1) init_palette();
     for (int y = 0; y < FRAME_HEIGHT / 2; y += 2) {
