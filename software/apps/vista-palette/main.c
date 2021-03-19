@@ -19,26 +19,17 @@
 #include "dvi_serialiser.h"
 #include "common_dvi_pin_configs.h"
 
-// TMDS bit clock 252 MHz
-// DVDD 1.2V (1.1V seems ok too)
-#if 0
-#define FRAME_WIDTH 640
-#define FRAME_HEIGHT 480
-#define VREG_VSEL VREG_VOLTAGE_1_10
-#define DVI_TIMING dvi_timing_640x480p_60hz
-#else
+// TMDS bit clock 372 MHz
+// DVDD 1.25V (1.2V seems ok too)
 #define FRAME_WIDTH 1280
 #define FRAME_HEIGHT 720
 #define VREG_VSEL VREG_VOLTAGE_1_25
 #define DVI_TIMING dvi_timing_1280x720p_30hz
-#endif
 
 #define LED_PIN 25
 
 #define IMAGE_BASE 0x1003c000
-#define IMAGE_SCANLINE_SIZE FRAME_WIDTH
 
-#define N_IMAGES 3
 #define FRAMES_PER_IMAGE 300
 
 struct dvi_inst dvi0;
@@ -88,7 +79,25 @@ void __not_in_flash("main") core1_main() {
 	__builtin_unreachable();
 }
 
-uint8_t img_buf[2][2 * FRAME_WIDTH];
+static uint img_dma_chan;
+static uint8_t img_buf[2][2 * FRAME_WIDTH];
+static uint32_t* img_base = (uint32_t*)IMAGE_BASE;
+static uint32_t palette_size;
+static uint32_t img_data_size;
+static uint8_t* img_data_ptr;
+
+static void setup_image() {
+	printf("Setup image from %p\n", img_base);
+	palette_size = *img_base;
+	img_data_size = *(img_base + 1);
+	img_data_ptr = (uint8_t*)(img_base + 2 + palette_size);
+
+	assert(palette_size <= MAX_PALETTE_SIZE);
+	assert(2 * FRAME_WIDTH > sizeof(uint32_t) * palette_size);
+	flash_bulk_dma_start((uint32_t*)img_buf[0], img_base + 2, palette_size, img_dma_chan);
+	dma_channel_wait_for_finish_blocking(img_dma_chan);
+	tmds_setup_palette24_symbols((uint32_t*)img_buf[0], tmds_palette, MAX_PALETTE_SIZE);
+}
 
 int __not_in_flash("main") main() {
 	vreg_set_voltage(VREG_VSEL);
@@ -107,18 +116,9 @@ int __not_in_flash("main") main() {
 	dvi0.ser_cfg = DEFAULT_DVI_SERIAL_CONFIG;
 	dvi_init(&dvi0, next_striped_spin_lock_num(), next_striped_spin_lock_num());
 
-	uint32_t* img_base = (uint32_t*)IMAGE_BASE;
-	uint32_t palette_size = *img_base;
-	uint32_t img_data_size = *(img_base + 1);
-	uint8_t* img_data_ptr = (uint8_t*)(img_base + 2 + palette_size);
-
 	printf("DMA palette and setup\n");
-	const uint img_dma_chan = dma_claim_unused_channel(true);
-	assert(palette_size <= MAX_PALETTE_SIZE);
-	assert(2 * IMAGE_SCANLINE_SIZE > sizeof(uint32_t) * palette_size);
-	flash_bulk_dma_start((uint32_t*)img_buf[0], img_base + 2, palette_size, img_dma_chan);
-	dma_channel_wait_for_finish_blocking(img_dma_chan);
-	tmds_setup_palette24_symbols((uint32_t*)img_buf[0], tmds_palette, MAX_PALETTE_SIZE);
+	img_dma_chan = dma_claim_unused_channel(true);
+	setup_image();
 
 	printf("DMA first image line\n");
 	flash_bulk_dma_start((uint32_t*)img_buf[0], (uint32_t*)img_data_ptr, FRAME_WIDTH * 2 / sizeof(uint32_t), img_dma_chan);
@@ -140,12 +140,13 @@ int __not_in_flash("main") main() {
 			heartbeat = 0;
 			gpio_xor_mask(1u << LED_PIN);
 		}
-#if 0
 		if (++slideshow_ctr >= FRAMES_PER_IMAGE) {
 			slideshow_ctr = 0;
-			current_image_base = IMAGE_BASE + (current_image_base - IMAGE_BASE + IMAGE_SIZE) % (N_IMAGES * IMAGE_SIZE);
+			img_base += 2 + palette_size + (img_data_size / sizeof(uint32_t));
+			if (*img_base == 0) img_base = (uint32_t*)IMAGE_BASE;
+			
+			setup_image();
 		}
-#endif
 		for (int y = 0; y < FRAME_HEIGHT; y += 2) {
 			// Start DMA to back buffer before starting to encode the front buffer (each buffer is two scanlines)
 			flash_bulk_dma_start(
