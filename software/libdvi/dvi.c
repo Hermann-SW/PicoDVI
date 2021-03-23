@@ -30,15 +30,21 @@ void dvi_init(struct dvi_inst *inst, uint spinlock_tmds_queue, uint spinlock_col
 	inst->late_scanline_ctr = 0;
 	inst->tmds_buf_release_next = NULL;
 	inst->tmds_buf_release = NULL;
-	queue_init_with_spinlock_u32(&inst->q_tmds_valid,   8, &inst->queue_buf[0],  spinlock_tmds_queue);
-	queue_init_with_spinlock_u32(&inst->q_tmds_free,    8, &inst->queue_buf[9],  spinlock_tmds_queue);
+	queue_init_with_spinlock_u32(&inst->q_tmds_valid, 8, &inst->queue_buf[0], spinlock_tmds_queue);
+	queue_init_with_spinlock_u32(&inst->q_tmds_free, 8, &inst->queue_buf[9], spinlock_tmds_queue);
 	queue_init_with_spinlock_u32(&inst->q_colour_valid, 8, &inst->queue_buf[18], spinlock_colour_queue);
-	queue_init_with_spinlock_u32(&inst->q_colour_free,  8, &inst->queue_buf[27], spinlock_colour_queue);
+	queue_init_with_spinlock_u32(&inst->q_colour_free, 8, &inst->queue_buf[27], spinlock_colour_queue);
 
-	dvi_setup_scanline_for_vblank(inst->timing, inst->dma_cfg, true, &inst->dma_list_vblank_sync);
-	dvi_setup_scanline_for_vblank(inst->timing, inst->dma_cfg, false, &inst->dma_list_vblank_nosync);
+	dvi_setup_scanline_for_vblank(inst->timing, inst->dma_cfg, true, false, &inst->dma_list_vblank_sync);
+	dvi_setup_scanline_for_vblank(inst->timing, inst->dma_cfg, false, false, &inst->dma_list_vblank_nosync);
 	dvi_setup_scanline_for_active(inst->timing, inst->dma_cfg, (void*)SRAM_BASE, &inst->dma_list_active);
 	dvi_setup_scanline_for_active(inst->timing, inst->dma_cfg, NULL, &inst->dma_list_error);
+
+	if (inst->timing->interlace) {
+		inst->dma_list_vblank_half = malloc(2 * sizeof(struct dvi_scanline_dma_list));
+		dvi_setup_scanline_for_vblank(inst->timing, inst->dma_cfg, false, true, &inst->dma_list_vblank_half[0]);
+		dvi_setup_scanline_for_vblank(inst->timing, inst->dma_cfg, true, true, &inst->dma_list_vblank_half[1]);
+	}
 
 	for (int i = 0; i < DVI_N_TMDS_BUFFERS; ++i) {
 		void *tmdsbuf;
@@ -85,11 +91,11 @@ static inline void __attribute__((always_inline)) _dvi_load_dma_op(const struct 
 		channel_config_set_read_increment(&cfg, true);
 		channel_config_set_write_increment(&cfg, true);
 		dma_channel_configure(
-			dma_cfg[i].chan_ctrl,
-			&cfg,
-			&dma_hw->ch[dma_cfg[i].chan_data],
-			dvi_lane_from_list(l, i),
-			4, // Configure all 4 registers then halt until next CHAIN_TO
+				dma_cfg[i].chan_ctrl,
+				&cfg,
+				&dma_hw->ch[dma_cfg[i].chan_data],
+				dvi_lane_from_list(l, i),
+				4, // Configure all 4 registers then halt until next CHAIN_TO
 			false
 		);
 	}
@@ -102,9 +108,9 @@ static inline void __attribute__((always_inline)) _dvi_load_dma_op(const struct 
 void dvi_start(struct dvi_inst *inst) {
 	_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_vblank_nosync);
 	dma_start_channel_mask(
-		(1u << inst->dma_cfg[0].chan_ctrl) |
-		(1u << inst->dma_cfg[1].chan_ctrl) |
-		(1u << inst->dma_cfg[2].chan_ctrl));
+			(1u << inst->dma_cfg[0].chan_ctrl) |
+			(1u << inst->dma_cfg[1].chan_ctrl) |
+			(1u << inst->dma_cfg[2].chan_ctrl));
 
 	// We really don't want the FIFOs to bottom out, so wait for full before
 	// starting the shift-out.
@@ -121,12 +127,12 @@ static inline void __dvi_func_x(_dvi_prepare_scanline_8bpp)(struct dvi_inst *ins
 	uint words_per_channel = pixwidth / DVI_SYMBOLS_PER_WORD;
 	// TODO maybe want to make this configurable one day
 	// anyhoo we are abutting the buffers in TMDS channel order
-	const uint red_msb   = 7;
-	const uint red_lsb   = 5;
+	const uint red_msb = 7;
+	const uint red_lsb = 5;
 	const uint green_msb = 4;
 	const uint green_lsb = 2;
-	const uint blue_msb  = 1;
-	const uint blue_lsb  = 0;
+	const uint blue_msb = 1;
+	const uint blue_lsb = 0;
 	// Scanline buffers are half-resolution; the functions take the number of *input* pixels as parameter.
 	tmds_encode_data_channel_8bpp(scanbuf, tmdsbuf + 0 * words_per_channel, pixwidth / 2, blue_msb, blue_lsb);
 	tmds_encode_data_channel_8bpp(scanbuf, tmdsbuf + 1 * words_per_channel, pixwidth / 2, green_msb, green_lsb);
@@ -139,12 +145,12 @@ static inline void __dvi_func_x(_dvi_prepare_scanline_16bpp)(struct dvi_inst *in
 	queue_remove_blocking_u32(&inst->q_tmds_free, &tmdsbuf);
 	uint pixwidth = inst->timing->h_active_pixels;
 	uint words_per_channel = pixwidth / DVI_SYMBOLS_PER_WORD;
-	const uint red_msb   = 15;
-	const uint red_lsb   = 11;
+	const uint red_msb = 15;
+	const uint red_lsb = 11;
 	const uint green_msb = 10;
 	const uint green_lsb = 5;
-	const uint blue_msb  = 4;
-	const uint blue_lsb  = 0;
+	const uint blue_msb = 4;
+	const uint blue_lsb = 0;
 	tmds_encode_data_channel_16bpp(scanbuf, tmdsbuf + 0 * words_per_channel, pixwidth / 2, blue_msb, blue_lsb);
 	tmds_encode_data_channel_16bpp(scanbuf, tmdsbuf + 1 * words_per_channel, pixwidth / 2, green_msb, green_lsb);
 	tmds_encode_data_channel_16bpp(scanbuf, tmdsbuf + 2 * words_per_channel, pixwidth / 2, red_msb, red_lsb);
@@ -197,7 +203,7 @@ static void __dvi_func(dvi_dma_irq_handler)(struct dvi_inst *inst) {
 
 	// Make sure all three channels have definitely loaded their last block
 	// (should be within a few cycles of one another)
-	for (int i = 0; i < N_TMDS_LANES; ++i) {
+	for (int i = 1; i < N_TMDS_LANES; ++i) {
 		while (dma_debug_hw->ch[inst->dma_cfg[i].chan_data].tcr != inst->timing->h_active_pixels / DVI_SYMBOLS_PER_WORD)
 			tight_loop_contents();
 	}
@@ -228,24 +234,30 @@ static void __dvi_func(dvi_dma_irq_handler)(struct dvi_inst *inst) {
 	}
 
 	switch (inst->timing_state.v_state) {
-		case DVI_STATE_ACTIVE:
+	case DVI_STATE_ACTIVE:
 			if (tmdsbuf) {
-				dvi_update_scanline_data_dma(inst->timing, tmdsbuf, &inst->dma_list_active);
-				_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_active);
-			}
+			dvi_update_scanline_data_dma(inst->timing, tmdsbuf, &inst->dma_list_active);
+			_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_active);
+		}
 			else {
-				_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_error);
-			}
+			_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_error);
+		}
 			if (inst->scanline_callback && inst->timing_state.v_ctr % DVI_VERTICAL_REPEAT == DVI_VERTICAL_REPEAT - 1) {
-				inst->scanline_callback();
-			}
-			break;
-		case DVI_STATE_SYNC:
-			_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_vblank_sync);
-			break;
-		default:
-			_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_vblank_nosync);
-			break;
+			inst->scanline_callback();
+		}
+		break;
+	case DVI_STATE_SYNC:
+		_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_vblank_sync);
+		break;
+  case DVI_STATE_INTERLACE_SYNC_START:
+	  _dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_vblank_half[0]);
+		break;
+  case DVI_STATE_INTERLACE_SYNC_END:
+	  _dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_vblank_half[1]);
+		break;
+	default:
+		_dvi_load_dma_op(inst->dma_cfg, &inst->dma_list_vblank_nosync);
+		break;
 	}
 }
 

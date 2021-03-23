@@ -13,6 +13,7 @@ struct dvi_timing {
 	uint h_back_porch;
 	uint h_active_pixels;
 
+	bool interlace;
 	bool v_sync_polarity;
 	uint v_front_porch;
 	uint v_sync_width;
@@ -27,12 +28,17 @@ enum dvi_line_state {
 	DVI_STATE_SYNC,
 	DVI_STATE_BACK_PORCH,
 	DVI_STATE_ACTIVE,
-	DVI_STATE_COUNT
+	DVI_STATE_COUNT,
+
+	// Special states for interlacing
+	DVI_STATE_INTERLACE_SYNC_START,
+	DVI_STATE_INTERLACE_SYNC_END,
 };
 
 struct dvi_timing_state {
 	uint v_ctr;
 	enum dvi_line_state v_state;
+	bool v_interlace_first_half;
 };
 
 // This should map directly to DMA register layout, but more convenient types
@@ -82,6 +88,8 @@ extern const struct dvi_timing dvi_timing_1280x720p_30hz;
 
 extern const struct dvi_timing dvi_timing_800x600p_reduced_60hz;
 extern const struct dvi_timing dvi_timing_1280x720p_reduced_30hz;
+extern const struct dvi_timing dvi_timing_1600x900p_reduced_24hz;
+extern const struct dvi_timing dvi_timing_1920x1080i_50hz;
 
 void dvi_timing_state_init(struct dvi_timing_state *t);
 
@@ -90,7 +98,7 @@ void dvi_timing_state_advance(const struct dvi_timing *t, struct dvi_timing_stat
 void dvi_scanline_dma_list_init(struct dvi_scanline_dma_list *dma_list);
 
 void dvi_setup_scanline_for_vblank(const struct dvi_timing *t, const struct dvi_lane_dma_cfg dma_cfg[],
-		bool vsync_asserted, struct dvi_scanline_dma_list *l);
+		bool vsync_asserted, bool vsync_half, struct dvi_scanline_dma_list *l);
 
 void dvi_setup_scanline_for_active(const struct dvi_timing *t, const struct dvi_lane_dma_cfg dma_cfg[],
 		uint32_t *tmdsbuf, struct dvi_scanline_dma_list *l);

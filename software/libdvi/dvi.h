@@ -28,6 +28,10 @@ struct dvi_inst {
 	struct dvi_scanline_dma_list dma_list_active;
 	struct dvi_scanline_dma_list dma_list_error;
 
+	// vblank lines which switch vsync half way through
+	// only allocated for interlaced video modes
+	struct dvi_scanline_dma_list* dma_list_vblank_half;
+
 	// After a TMDS buffer has been enqueue via a control block for the last
 	// time, two IRQs must go by before freeing. The first indicates the control
 	// block for this buf has been loaded, and the second occurs some time after

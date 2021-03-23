@@ -19,6 +19,7 @@ const struct dvi_timing __dvi_const(dvi_timing_640x480p_60hz) = {
 	.h_back_porch      = 48,
 	.h_active_pixels   = 640,
 
+	.interlace         = false,
 	.v_sync_polarity   = false,
 	.v_front_porch     = 10,
 	.v_sync_width      = 2,
@@ -36,6 +37,7 @@ const struct dvi_timing __dvi_const(dvi_timing_800x600p_60hz) = {
 	.h_back_porch      = 88,
 	.h_active_pixels   = 800,
 
+	.interlace         = false,
 	.v_sync_polarity   = false,
 	.v_front_porch     = 1,
 	.v_sync_width      = 4,
@@ -54,6 +56,7 @@ const struct dvi_timing __dvi_const(dvi_timing_800x480p_60hz) = {
 	.h_back_porch    = 96,
 	.h_active_pixels = 800,
 
+	.interlace       = false,
 	.v_sync_polarity = true,
 	.v_front_porch   = 3,
 	.v_sync_width    = 10,
@@ -72,6 +75,7 @@ const struct dvi_timing __dvi_const(dvi_timing_800x540p_60hz) = {
 	.h_back_porch    = 104,
 	.h_active_pixels = 800,
 
+	.interlace       = false,
 	.v_sync_polarity = true,
 	.v_front_porch   = 3,
 	.v_sync_width    = 10,
@@ -90,6 +94,7 @@ const struct dvi_timing __dvi_const(dvi_timing_800x600p_reduced_60hz) = {
 	.h_back_porch      = 80,
 	.h_active_pixels   = 800,
 
+	.interlace         = false,
 	.v_sync_polarity   = false,
 	.v_front_porch     = 3,
 	.v_sync_width      = 4,
@@ -108,6 +113,7 @@ const struct dvi_timing __dvi_const(dvi_timing_960x540p_60hz) = {
 	.h_back_porch      = 96,
 	.h_active_pixels   = 960,
 
+	.interlace         = false,
 	.v_sync_polarity   = true,
 	.v_front_porch     = 2,
 	.v_sync_width      = 6,
@@ -128,6 +134,7 @@ const struct dvi_timing __dvi_const(dvi_timing_1280x720p_30hz) = {
 	.h_back_porch      = 220,
 	.h_active_pixels   = 1280,
 
+	.interlace         = false,
 	.v_sync_polarity   = true,
 	.v_front_porch     = 5,
 	.v_sync_width      = 5,
@@ -147,6 +154,7 @@ const struct dvi_timing __dvi_const(dvi_timing_1280x720p_reduced_30hz) = {
 	.h_back_porch      = 80,
 	.h_active_pixels   = 1280,
 
+	.interlace         = false,
 	.v_sync_polarity   = false,
 	.v_front_porch     = 3,
 	.v_sync_width      = 5,
@@ -166,6 +174,7 @@ const struct dvi_timing __dvi_const(dvi_timing_1600x900p_reduced_30hz) = {
 	.h_back_porch      = 80,
 	.h_active_pixels   = 1600,
 
+	.interlace         = false,
 	.v_sync_polarity   = false,
 	.v_front_porch     = 3,
 	.v_sync_width      = 5,
@@ -173,6 +182,43 @@ const struct dvi_timing __dvi_const(dvi_timing_1600x900p_reduced_30hz) = {
 	.v_active_lines    = 900,
 
 	.bit_clk_khz       = 488000
+};
+
+// 1600x900 with a more reasonable 384MHz pixel clock, refreshing at 24Hz.
+// This works on some monitors but is far from standard!
+const struct dvi_timing __dvi_const(dvi_timing_1600x900p_reduced_24hz) = {
+	.h_sync_polarity   = true,
+	.h_front_porch     = 48,
+	.h_sync_width      = 32,
+	.h_back_porch      = 80,
+	.h_active_pixels   = 1600,
+
+	.interlace         = false,
+	.v_sync_polarity   = false,
+	.v_front_porch     = 3,
+	.v_sync_width      = 5,
+	.v_back_porch      = 6,
+	.v_active_lines    = 900,
+
+	.bit_clk_khz       = 384000
+};
+
+// 50Hz 1080i (interlaced), this is CEA-861 format 20.
+const struct dvi_timing __dvi_const(dvi_timing_1920x1080i_50hz) = {
+	.h_sync_polarity   = true,
+	.h_front_porch     = 528,
+	.h_sync_width      = 44,
+	.h_back_porch      = 148,
+	.h_active_pixels   = 1920,
+
+	.interlace         = true,
+	.v_sync_polarity   = true,
+	.v_front_porch     = 2,
+	.v_sync_width      = 5,
+	.v_back_porch      = 21,
+	.v_active_lines    = 540,
+
+	.bit_clk_khz       = 372000
 };
 
 // ----------------------------------------------------------------------------
@@ -235,10 +281,35 @@ static uint32_t __attribute__((aligned(8))) __dvi_const(empty_scanline_tmds)[6] 
 void dvi_timing_state_init(struct dvi_timing_state *t) {
 	t->v_ctr = 0;
 	t->v_state = DVI_STATE_FRONT_PORCH;
+	t->v_interlace_first_half = true;
 };
 
 void __dvi_func(dvi_timing_state_advance)(const struct dvi_timing *t, struct dvi_timing_state *s) {
 		s->v_ctr++;
+		if (t->interlace) {
+			if (s->v_state == DVI_STATE_ACTIVE && s->v_ctr == t->v_active_lines)
+				s->v_interlace_first_half = !s->v_interlace_first_half;
+
+			if (s->v_state == DVI_STATE_INTERLACE_SYNC_START) {
+				s->v_state = DVI_STATE_SYNC;
+				return;
+			}
+			if (s->v_state == DVI_STATE_INTERLACE_SYNC_END) {
+				s->v_state = DVI_STATE_BACK_PORCH;
+				s->v_ctr = 0;
+				return;
+			}
+			if (s->v_state == DVI_STATE_FRONT_PORCH && s->v_ctr == t->v_front_porch && s->v_interlace_first_half) {
+				s->v_state = DVI_STATE_INTERLACE_SYNC_START;
+				s->v_ctr = 0;
+				return;
+			}
+			if (s->v_state == DVI_STATE_SYNC && s->v_ctr == t->v_sync_width && s->v_interlace_first_half) {
+				s->v_state = DVI_STATE_INTERLACE_SYNC_END;
+				return;
+			}
+		}
+
 		if ((s->v_state == DVI_STATE_FRONT_PORCH && s->v_ctr == t->v_front_porch) || 
 		    (s->v_state == DVI_STATE_SYNC && s->v_ctr == t->v_sync_width) ||
 		    (s->v_state == DVI_STATE_BACK_PORCH && s->v_ctr == t->v_back_porch) ||
@@ -273,7 +344,7 @@ static void _set_data_cb(dma_cb_t *cb, const struct dvi_lane_dma_cfg *dma_cfg,
 };
 
 void dvi_setup_scanline_for_vblank(const struct dvi_timing *t, const struct dvi_lane_dma_cfg dma_cfg[],
-		bool vsync_asserted, struct dvi_scanline_dma_list *l) {
+		bool vsync_asserted, bool vsync_half, struct dvi_scanline_dma_list *l) {
 
 	bool vsync = t->v_sync_polarity == vsync_asserted;
 	const uint32_t *sym_hsync_off = get_ctrl_sym(vsync, !t->h_sync_polarity);
@@ -284,8 +355,19 @@ void dvi_setup_scanline_for_vblank(const struct dvi_timing *t, const struct dvi_
 	// The symbol table contains each control symbol *twice*, concatenated into 20 LSBs of table word, so we can always do word-repeat.
 	_set_data_cb(&synclist[0], &dma_cfg[TMDS_SYNC_LANE], sym_hsync_off, t->h_front_porch   / DVI_SYMBOLS_PER_WORD, 2, false);
 	_set_data_cb(&synclist[1], &dma_cfg[TMDS_SYNC_LANE], sym_hsync_on,  t->h_sync_width    / DVI_SYMBOLS_PER_WORD, 2, false);
-	_set_data_cb(&synclist[2], &dma_cfg[TMDS_SYNC_LANE], sym_hsync_off, t->h_back_porch    / DVI_SYMBOLS_PER_WORD, 2, true);
-	_set_data_cb(&synclist[3], &dma_cfg[TMDS_SYNC_LANE], sym_hsync_off, t->h_active_pixels / DVI_SYMBOLS_PER_WORD, 2, false);
+	if (vsync_half) {
+		const uint h_total = t->h_front_porch + t->h_sync_width + t->h_back_porch + t->h_active_pixels;
+		const uint to_vsync_change = (h_total / 2) - t->h_sync_width;
+		const uint after_vsync_change = (h_total / 2) - t->h_front_porch;
+		const uint32_t *sym_hsync_off_vsync_flip = get_ctrl_sym(!vsync, !t->h_sync_polarity);
+
+		_set_data_cb(&synclist[2], &dma_cfg[TMDS_SYNC_LANE], sym_hsync_off, to_vsync_change    / DVI_SYMBOLS_PER_WORD, 2, true);
+		_set_data_cb(&synclist[3], &dma_cfg[TMDS_SYNC_LANE], sym_hsync_off_vsync_flip, after_vsync_change / DVI_SYMBOLS_PER_WORD, 2, false);
+	}
+	else {
+		_set_data_cb(&synclist[2], &dma_cfg[TMDS_SYNC_LANE], sym_hsync_off, t->h_back_porch    / DVI_SYMBOLS_PER_WORD, 2, true);
+		_set_data_cb(&synclist[3], &dma_cfg[TMDS_SYNC_LANE], sym_hsync_off, t->h_active_pixels / DVI_SYMBOLS_PER_WORD, 2, false);
+	}
 
 	for (int i = 0; i < N_TMDS_LANES; ++i) {
 		if (i == TMDS_SYNC_LANE)
