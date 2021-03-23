@@ -6,6 +6,8 @@ add_executable(sprite_bounce
 	main.c
 )
 
+pico_set_boot_stage2(sprite_bounce vista-palette_boot2)
+
 target_compile_options(sprite_bounce PRIVATE -Wall)
 
 target_link_libraries(sprite_bounce

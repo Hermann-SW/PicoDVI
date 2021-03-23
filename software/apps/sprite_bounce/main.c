@@ -15,11 +15,13 @@
 #include "sprite.h"
 
 // Pick one:
-//#define MODE_640x480_60Hz
+// #define MODE_640x480_60Hz
 // #define MODE_800x480_60Hz
- #define MODE_800x600_60Hz
+// #define MODE_800x600_60Hz
 // #define MODE_960x540p_60Hz
 // #define MODE_1280x720_30Hz
+// #define MODE_1600x900_24Hz
+#define MODE_1920x1080i_50Hz
 
 #include "raspberry_128x128_rgab5515.h"
 #include "eben_128x128_rgab5515.h"
@@ -60,12 +62,26 @@
 #define VREG_VSEL VREG_VOLTAGE_1_25
 #define DVI_TIMING dvi_timing_1280x720p_30hz
 
+#elif defined(MODE_1600x900_24Hz)
+
+#define FRAME_WIDTH 800
+#define FRAME_HEIGHT 450
+#define VREG_VSEL VREG_VOLTAGE_1_25
+#define DVI_TIMING dvi_timing_1600x900p_reduced_24hz
+
+#elif defined(MODE_1920x1080i_50Hz)
+
+#define FRAME_WIDTH 960
+#define FRAME_HEIGHT 270
+#define VREG_VSEL VREG_VOLTAGE_1_25
+#define DVI_TIMING dvi_timing_1920x1080i_50hz
+
 #else
 #error "Select a video mode!"
 #endif
 
 #define N_BERRIES 50
-#define LED_PIN 21
+#define LED_PIN 25
 
 struct dvi_inst dvi0;
 
