@@ -203,10 +203,10 @@ const struct dvi_timing __dvi_const(dvi_timing_1600x900p_reduced_24hz) = {
 	.bit_clk_khz       = 384000
 };
 
-// 50Hz 1080i (interlaced), this is CEA-861 format 20.
-const struct dvi_timing __dvi_const(dvi_timing_1920x1080i_50hz) = {
+// 30Hz 1080i (interlaced), this is CEA-861 format 5 run at half speed.
+const struct dvi_timing __dvi_const(dvi_timing_1920x1080i_30hz) = {
 	.h_sync_polarity   = true,
-	.h_front_porch     = 528,
+	.h_front_porch     = 88,
 	.h_sync_width      = 44,
 	.h_back_porch      = 148,
 	.h_active_pixels   = 1920,
@@ -215,7 +215,7 @@ const struct dvi_timing __dvi_const(dvi_timing_1920x1080i_50hz) = {
 	.v_sync_polarity   = true,
 	.v_front_porch     = 2,
 	.v_sync_width      = 5,
-	.v_back_porch      = 21,
+	.v_back_porch      = 14,
 	.v_active_lines    = 540,
 
 	.bit_clk_khz       = 372000

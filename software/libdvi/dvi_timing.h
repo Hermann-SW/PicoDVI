@@ -89,7 +89,7 @@ extern const struct dvi_timing dvi_timing_1280x720p_30hz;
 extern const struct dvi_timing dvi_timing_800x600p_reduced_60hz;
 extern const struct dvi_timing dvi_timing_1280x720p_reduced_30hz;
 extern const struct dvi_timing dvi_timing_1600x900p_reduced_24hz;
-extern const struct dvi_timing dvi_timing_1920x1080i_50hz;
+extern const struct dvi_timing dvi_timing_1920x1080i_30hz;
 
 void dvi_timing_state_init(struct dvi_timing_state *t);
 
