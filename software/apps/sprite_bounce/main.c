@@ -21,7 +21,7 @@
 // #define MODE_960x540p_60Hz
 // #define MODE_1280x720_30Hz
 // #define MODE_1600x900_24Hz
-#define MODE_1920x1080i_50Hz
+#define MODE_1920x1080i_30Hz
 
 #include "raspberry_128x128_rgab5515.h"
 #include "eben_128x128_rgab5515.h"
@@ -69,12 +69,12 @@
 #define VREG_VSEL VREG_VOLTAGE_1_25
 #define DVI_TIMING dvi_timing_1600x900p_reduced_24hz
 
-#elif defined(MODE_1920x1080i_50Hz)
+#elif defined(MODE_1920x1080i_30Hz)
 
 #define FRAME_WIDTH 960
 #define FRAME_HEIGHT 270
 #define VREG_VSEL VREG_VOLTAGE_1_25
-#define DVI_TIMING dvi_timing_1920x1080i_50hz
+#define DVI_TIMING dvi_timing_1920x1080i_30hz
 
 #else
 #error "Select a video mode!"
