@@ -24,7 +24,7 @@
 
 // TMDS bit clock 252 MHz
 // DVDD 1.2V (1.1V seems ok too)
-#if 0
+#if 1
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
 #define VREG_VSEL VREG_VOLTAGE_1_10
