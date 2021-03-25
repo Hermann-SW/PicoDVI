@@ -8,17 +8,6 @@
 
 #include "pico/util/queue.h"
 #include "hardware/sync.h"
-#include <string.h>
-
-static inline void queue_init_with_spinlock_u32(queue_t *q, uint element_count, uint32_t* element_buffer, uint spinlock_num) {
-    q->lock = spin_lock_instance(spinlock_num);
-    memset(element_buffer, 0, (element_count + 1) * sizeof(uint32_t));
-    q->data = (uint8_t *)element_buffer;
-    q->element_count = (uint16_t)element_count;
-    q->element_size = (uint16_t)sizeof(uint32_t);
-    q->wptr = 0;
-    q->rptr = 0;
-}
 
 static inline uint16_t _queue_inc_index_u32(queue_t *q, uint16_t index) {
     if (++index > q->element_count) { // > because we have element_count + 1 elements
