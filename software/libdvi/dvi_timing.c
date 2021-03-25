@@ -221,6 +221,24 @@ const struct dvi_timing __dvi_const(dvi_timing_1920x1080i_30hz) = {
 	.bit_clk_khz       = 372000
 };
 
+// 50Hz 1080i (interlaced), this is CEA-861 format 20.
+const struct dvi_timing __dvi_const(dvi_timing_1920x1080i_25hz) = {
+	.h_sync_polarity   = true,
+	.h_front_porch     = 528,
+	.h_sync_width      = 44,
+	.h_back_porch      = 148,
+	.h_active_pixels   = 1920,
+
+	.interlace         = true,
+	.v_sync_polarity   = true,
+	.v_front_porch     = 2,
+	.v_sync_width      = 5,
+	.v_back_porch      = 15,
+	.v_active_lines    = 540,
+
+	.bit_clk_khz       = 372000
+};
+
 // ----------------------------------------------------------------------------
 
 // The DMA scheme is:
@@ -281,7 +299,7 @@ static uint32_t __attribute__((aligned(8))) __dvi_const(empty_scanline_tmds)[6] 
 void dvi_timing_state_init(struct dvi_timing_state *t) {
 	t->v_ctr = 0;
 	t->v_state = DVI_STATE_FRONT_PORCH;
-	t->v_interlace_first_half = true;
+	t->v_interlace_first_half = false;
 };
 
 void __dvi_func(dvi_timing_state_advance)(const struct dvi_timing *t, struct dvi_timing_state *s) {

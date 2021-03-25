@@ -19,16 +19,24 @@
 #include "dvi_serialiser.h"
 #include "common_dvi_pin_configs.h"
 
+#if 0
 // TMDS bit clock 372 MHz
 // DVDD 1.25V (1.2V seems ok too)
 #define FRAME_WIDTH 1280
 #define FRAME_HEIGHT 720
 #define VREG_VSEL VREG_VOLTAGE_1_25
 #define DVI_TIMING dvi_timing_1280x720p_30hz
+#else
+#define FRAME_WIDTH 1920
+#define FRAME_HEIGHT 1080
+#define IMAGE_HEIGHT 1040
+#define VREG_VSEL VREG_VOLTAGE_1_25
+#define DVI_TIMING dvi_timing_1920x1080i_25hz
+#endif
 
 #define LED_PIN 25
 
-#define IMAGE_BASE 0x1003c000
+#define IMAGE_BASE 0x10010000
 
 #define FRAMES_PER_IMAGE 300
 
@@ -147,14 +155,16 @@ int __not_in_flash("main") main() {
 			
 			setup_image();
 		}
-		for (int y = 0; y < FRAME_HEIGHT; y += 2) {
+		for (int y = 0; y < FRAME_HEIGHT / 2; y += 2) {
 			// Start DMA to back buffer before starting to encode the front buffer (each buffer is two scanlines)
-			flash_bulk_dma_start(
-				(uint32_t*)img_buf[img_buf_back],
-				(uint32_t*)(img_data_ptr + ((y + 2) % FRAME_HEIGHT) * FRAME_WIDTH),
-				FRAME_WIDTH * 2 / sizeof(uint32_t),
-				img_dma_chan
-			);
+			if (y + 2 <= (IMAGE_HEIGHT / 2)) {
+				flash_bulk_dma_start(
+					(uint32_t*)img_buf[img_buf_back],
+					(uint32_t*)(img_data_ptr + (y + 2) * FRAME_WIDTH),
+					FRAME_WIDTH * 2 / sizeof(uint32_t),
+					img_dma_chan
+				);
+			}
 			const uint8_t *img = (const uint8_t*)img_buf[img_buf_front];			
 			uint32_t *our_tmds_buf, *their_tmds_buf;
 			queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
@@ -167,9 +177,40 @@ int __not_in_flash("main") main() {
 			multicore_fifo_pop_blocking();
 			queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
 			queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
-			// Swap the buffers after each scanline pair completion
-			img_buf_front = !img_buf_front;
-			img_buf_back = !img_buf_back;
+			if (y + 2 < (IMAGE_HEIGHT / 2) || (y + 2) == (FRAME_HEIGHT / 2)) {
+				// Swap the buffers after each scanline pair completion
+				img_buf_front = !img_buf_front;
+				img_buf_back = !img_buf_back;
+			}
+		}
+		for (int y = IMAGE_HEIGHT / 2; y < (IMAGE_HEIGHT + FRAME_HEIGHT) / 2; y += 2) {
+			// Start DMA to back buffer before starting to encode the front buffer (each buffer is two scanlines)
+			if (y + 2 <= IMAGE_HEIGHT) {
+				flash_bulk_dma_start(
+					(uint32_t*)img_buf[img_buf_back],
+					(uint32_t*)(img_data_ptr + ((y + 2) % IMAGE_HEIGHT) * FRAME_WIDTH),
+					//(uint32_t*)(img_data_ptr + ((y + 2) - (IMAGE_HEIGHT / 2)) * FRAME_WIDTH),
+					FRAME_WIDTH * 2 / sizeof(uint32_t),
+					img_dma_chan
+				);
+			}
+			const uint8_t *img = (const uint8_t*)img_buf[img_buf_front];			
+			uint32_t *our_tmds_buf, *their_tmds_buf;
+			queue_remove_blocking_u32(&dvi0.q_tmds_free, &their_tmds_buf);
+			multicore_fifo_push_blocking((uint32_t)(img));
+			multicore_fifo_push_blocking((uint32_t)their_tmds_buf);
+	
+			queue_remove_blocking_u32(&dvi0.q_tmds_free, &our_tmds_buf);
+			tmds_encode_palette_data((const uint32_t*)(img + FRAME_WIDTH), tmds_palette, our_tmds_buf, FRAME_WIDTH, PALETTE_BITS);
+			
+			multicore_fifo_pop_blocking();
+			queue_add_blocking_u32(&dvi0.q_tmds_valid, &their_tmds_buf);
+			queue_add_blocking_u32(&dvi0.q_tmds_valid, &our_tmds_buf);
+			if (y + 2 < IMAGE_HEIGHT || y + 2 == (IMAGE_HEIGHT + FRAME_HEIGHT) / 2) {
+				// Swap the buffers after each scanline pair completion
+				img_buf_front = !img_buf_front;
+				img_buf_back = !img_buf_back;
+			}
 		}
 	}
 	__builtin_unreachable();
