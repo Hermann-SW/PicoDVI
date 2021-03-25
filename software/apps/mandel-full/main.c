@@ -24,7 +24,7 @@
 
 // TMDS bit clock 252 MHz
 // DVDD 1.2V (1.1V seems ok too)
-#if 1
+#if 0
 #define FRAME_WIDTH 640
 #define FRAME_HEIGHT 480
 #define VREG_VSEL VREG_VOLTAGE_1_10
@@ -47,8 +47,8 @@
 #define TIMING_DEBUG
 
 // Start queueing more DVI buffers when the queue gets to this level
-#define NUM_TMDS_BUFFERS 6
-#define QUEUE_THRESHOLD (NUM_TMDS_BUFFERS - 2)
+#define NUM_TMDS_BUFFERS 5
+#define QUEUE_THRESHOLD (NUM_TMDS_BUFFERS - 3)
 
 uint8_t mandel[FRAME_WIDTH * (FRAME_HEIGHT / 2)];
 
@@ -218,7 +218,7 @@ void __not_in_flash("core1_main") core1_main() {
     tmds_encode_palette_data(colourbuf, tmds_palette, tmdsbuf, FRAME_WIDTH, PALETTE_BITS);
     sio_hw->fifo_wr = 0;
     __sev();
-    while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) >= QUEUE_THRESHOLD) generate_steal_one(&fractal);
+    while (!fractal.done && queue_get_level(&dvi0.q_tmds_valid) > QUEUE_THRESHOLD) generate_steal_one(&fractal);
   }
   __builtin_unreachable();
 }
