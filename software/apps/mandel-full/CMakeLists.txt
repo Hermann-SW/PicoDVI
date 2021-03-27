@@ -29,3 +29,5 @@ target_link_libraries(mandel-full
 
 # create map/bin/hex file etc.
 pico_add_extra_outputs(mandel-full)
+
+pico_set_binary_type(mandel-full default)

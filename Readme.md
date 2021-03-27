@@ -1,3 +1,18 @@
+This fork from Michael Bell allows for 800x540 mandel-full in interlaced branch. See 1st diff for small changes needed to build with pico-sdk 1.1.0
+
+Build:
+
+- git clone -b interlaced https://github.com/Hermann-SW/PicoDVI.git
+- cd PicoDVI/software/
+- mkdir build
+- cd build
+- cmake ..
+- cd apps/mandel-full/
+- make -j4
+- flash mandel-full.uf2
+
+
+
 Bitbanged DVI on the RP2040 Microcontroller
 ===========================================
 

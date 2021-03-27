@@ -147,7 +147,7 @@ void zoom_mandel() {
   init_fractal(&fractal);
 }
 
-void __not_in_flash_func(interp_mandel)(int y) {
+void interp_mandel(int y) {
   if (y == 0) {
     float zoomx = -.744f + ZOOM_SLIDE * ((float)(zoom_count + 1) / (float)NUM_ZOOMS);
     float sizex = ZOOM_RATIO * (fractal.maxx - fractal.minx);
@@ -223,7 +223,7 @@ void __not_in_flash("core1_main") core1_main() {
   __builtin_unreachable();
 }
 
-int __not_in_flash("main") main() {
+int main() {
   vreg_set_voltage(VREG_VSEL);
   sleep_ms(10);
   set_sys_clock_khz(DVI_TIMING.bit_clk_khz, true);
