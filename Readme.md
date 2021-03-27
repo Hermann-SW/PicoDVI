@@ -1,3 +1,6 @@
+Mission statement
+=================
+
 This fork from Michael Bell allows for 800x540 mandel-full in interlaced branch. See 1st diff for small changes needed to build with pico-sdk 1.1.0
 
 Build:
